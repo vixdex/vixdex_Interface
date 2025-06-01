@@ -9,6 +9,7 @@ import { UserProfile } from '@/components/user-profile';
 import { AssetTable } from '@/components/asset-table';
 import { ArrowBigLeftDashIcon } from 'lucide-react';
 import Link from 'next/link';
+import FeeEarningsTable from '@/components/derive-table';
 
 export default function HomePage() {
   const router = useRouter();
@@ -40,16 +41,14 @@ export default function HomePage() {
       </motion.div>
 
       <motion.div
-        className="grid grid-cols-1 md:grid-cols-3 gap-4"
+        className="grid grid-cols-3 gap-4"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
       >
         <Card className="bg-card/50">
           <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground">
-              value of holding
-            </div>
+            <div className="text-sm text-muted-foreground">Holdings</div>
             <div className="text-2xl font-bold mt-1">5000$</div>
           </CardContent>
         </Card>
@@ -89,7 +88,7 @@ export default function HomePage() {
               </TabsContent>
 
               <TabsContent value="derive">
-                <AssetTable showDerive={true} />
+                <FeeEarningsTable showDerive={true} />
               </TabsContent>
             </Tabs>
           </CardContent>

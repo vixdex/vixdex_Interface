@@ -15,6 +15,7 @@ interface TradingPairsProps {
 interface TradingPair {
   id: string;
   name: string;
+  swing: string;
   baseSymbol: string;
   quoteSymbol: string;
   price: string;
@@ -36,6 +37,7 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
           {
             id: '1',
             name: 'SHIB/USDC',
+            swing: 'High',
             baseSymbol: 'SHIB',
             quoteSymbol: 'USDC',
             price: '$0.0527',
@@ -47,6 +49,7 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
           {
             id: '2',
             name: 'USDC/BTC',
+            swing: 'Low',
             baseSymbol: 'USDC',
             quoteSymbol: 'BTC',
             price: '$0.0527',
@@ -58,6 +61,8 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
           {
             id: '3',
             name: 'SHIB/ETH',
+            swing: 'High',
+
             baseSymbol: 'SHIB',
             quoteSymbol: 'ETH',
             price: '$0.00003',
@@ -69,6 +74,8 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
           {
             id: '4',
             name: 'SHIB/USDC',
+            swing: 'High',
+
             baseSymbol: 'SHIB',
             quoteSymbol: 'USDC',
             price: '$0.0527',
@@ -80,6 +87,8 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
           {
             id: '5',
             name: 'USDC/BTC',
+            swing: 'Low',
+
             baseSymbol: 'USDC',
             quoteSymbol: 'BTC',
             price: '$0.0527',
@@ -91,6 +100,8 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
           {
             id: '6',
             name: 'SHIB/ETH',
+            swing: 'Low',
+
             baseSymbol: 'SHIB',
             quoteSymbol: 'ETH',
             price: '$0.00003',
@@ -117,10 +128,13 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
       <thead>
         <tr className="text-xs text-muted-foreground border-b   border-border/80">
           <th className="text-left pb-2 pl-2">Derive Name</th>
-          <th className="text-right pb-2">Price</th>
-          <th className="text-right pb-2">VFTs marketcap</th>
-          <th className="text-right pb-2">24h Change</th>
-          <th className="text-right pb-2">Current IV</th>
+          <th className="text-right pb-2 ">Price</th>
+          <th className="text-right pb-2 hidden md:table-cell">
+            VFTs marketcap
+          </th>
+          <th className="text-right pb-2 hidden md:table-cell">24h Change</th>
+          <th className="text-right pb-2 hidden md:table-cell">Current IV</th>
+
           <th className="text-right pb-2 pr-2">Action</th>
         </tr>
       </thead>
@@ -146,15 +160,37 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
                 </div>
                 <div>
                   <div className="font-medium">{pair.name}</div>
-                  <div className="text-xs bg-secondary text-secondary-foreground px-1 rounded inline-block">
-                    HIGH
+                  <div className="flex items-center">
+                    <div
+                      className={`text-xs px-2 py-0.5 rounded ${
+                        pair.swing === 'High'
+                          ? 'bg-green-200 text-green-800'
+                          : 'bg-yellow-200 text-yellow-800'
+                      }`}
+                    >
+                      {pair.swing}
+                    </div>
+                    <div
+                      className={`flex items-center justify-end  md:hidden ${
+                        pair.change24h > 0 ? 'text-success' : 'text-destructive'
+                      }`}
+                    >
+                      {pair.change24h > 0 ? (
+                        <ArrowUp className="h-3 w-3 mr-1" />
+                      ) : (
+                        <ArrowDown className="h-3 w-3 mr-1" />
+                      )}
+                      {Math.abs(pair.change24h)}%
+                    </div>
                   </div>
                 </div>
               </Link>
             </td>
             <td className="text-right py-3">{pair.price}</td>
-            <td className="text-right py-3">{pair.marketCap}</td>
-            <td className="text-right py-3">
+            <td className="text-right py-3 hidden md:table-cell">
+              {pair.marketCap}
+            </td>
+            <td className="text-right py-3 hidden md:table-cell">
               <div
                 className={`flex items-center justify-end ${
                   pair.change24h > 0 ? 'text-success' : 'text-destructive'
@@ -168,7 +204,10 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
                 {Math.abs(pair.change24h)}%
               </div>
             </td>
-            <td className="text-right py-3">{pair.currentIV}</td>
+            <td className="text-right py-3 hidden md:table-cell">
+              {pair.currentIV}
+            </td>
+
             <td className="text-right py-3 pr-2">
               <Link href={`/token/${pair.id}`}>
                 <Button
