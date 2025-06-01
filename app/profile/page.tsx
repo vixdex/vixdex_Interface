@@ -11,6 +11,21 @@ import { ArrowBigLeftDashIcon } from 'lucide-react';
 import Link from 'next/link';
 import FeeEarningsTable from '@/components/derive-table';
 
+const stats = [
+  {
+    label: 'Balance',
+    value: '$5000',
+  },
+  {
+    label: 'Invested Markets',
+    value: '25',
+  },
+  {
+    label: 'Total Vol',
+    value: '$25k',
+  },
+];
+
 export default function HomePage() {
   const router = useRouter();
 
@@ -39,33 +54,24 @@ export default function HomePage() {
       >
         <UserProfile />
       </motion.div>
-
       <motion.div
-        className="grid grid-cols-3 gap-4"
+        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
       >
-        <Card className="bg-card/50">
-          <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground">Holdings</div>
-            <div className="text-2xl font-bold mt-1">5000$</div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card/50">
-          <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground">total market</div>
-            <div className="text-2xl font-bold mt-1">2560$</div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card/50">
-          <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground">total vol</div>
-            <div className="text-2xl font-bold mt-1">$256k</div>
-          </CardContent>
-        </Card>
+        {stats.map((stat, index) => (
+          <Card key={index} className="bg-card/50 h-full">
+            <CardContent className="p-5 flex flex-col justify-center h-full">
+              <div className="text-sm text-muted-foreground text-center md:text-left">
+                {stat.label}
+              </div>
+              <div className="text-2xl font-bold mt-1 text-center md:text-left">
+                {stat.value}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </motion.div>
 
       <motion.div
