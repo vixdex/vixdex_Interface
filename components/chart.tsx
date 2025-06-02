@@ -1,98 +1,177 @@
 'use client';
-import { motion } from 'framer-motion';
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  createChart,
+  IChartApi,
+  ISeriesApi,
+  CandlestickData,
+} from 'lightweight-charts';
 
-const Chart = ({
-  selectedPair,
-  chartTimeFrame,
-  setChartTimeFrame,
-  chartData, // Not used here, but kept for potential future use
+// Define the shape of candlestick data
+interface CandleData {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+// Props for the chart component
+interface CandlestickChartProps {
+  width?: number;
+  height?: number;
+}
+
+// Available time ranges
+type TimeRange = '1D' | '5D' | '1M' | '3M' | '6M' | '1Y';
+
+const CandlestickChart: React.FC<CandlestickChartProps> = ({
+  width = 600,
+  height = 400,
 }) => {
-  const chartContainerRef = useRef(null);
-  const widgetRef = useRef(null);
-  const [activeTab, setActiveTab] = useState('high'); // 'high' or 'low'
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const [selectedRange, setSelectedRange] = useState<TimeRange>('1M');
 
-  useEffect(() => {
-    // Cleanup previous widget instance if it exists
-    if (widgetRef.current) {
-      widgetRef.current.remove();
+  // Generate random candlestick data based on the selected range
+  const generateRandomData = (range: TimeRange): CandleData[] => {
+    const data: CandleData[] = [];
+    const startDate = new Date('2025-01-01');
+    let lastClose = 100;
+
+    // Define the number of data points based on the range
+    const rangeDays: Record<TimeRange, number> = {
+      '1D': 1,
+      '5D': 5,
+      '1M': 30,
+      '3M': 90,
+      '6M': 180,
+      '1Y': 365,
+    };
+
+    const days = rangeDays[range];
+
+    for (let i = 0; i < days; i++) {
+      const time = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
+      const open = lastClose;
+      const change = (Math.random() - 0.5) * 10;
+      const close = open + change;
+      const high = Math.max(open, close) + Math.random() * 5;
+      const low = Math.min(open, close) - Math.random() * 5;
+
+      data.push({
+        time: time.toISOString().split('T')[0], // Format as YYYY-MM-DD
+        open: Number(open.toFixed(2)),
+        high: Number(high.toFixed(2)),
+        low: Number(low.toFixed(2)),
+        close: Number(close.toFixed(2)),
+      });
+
+      lastClose = close;
     }
 
-    // Create the TradingView widget
-    const script = document.createElement('script');
-    script.src = 'https://s3.tradingview.com/tv.js';
-    script.async = true;
-    script.onload = () => {
-      widgetRef.current = new window.TradingView.widget({
-        width: '100%',
-        height: '100%',
-        symbol: 'BTCUSD', // Use selectedPair, default to BTCUSD if not provided.... selectedPair ||
-        interval:
-          chartTimeFrame === '1m' ? '1' : chartTimeFrame === '5m' ? '5' : '60', // Map to TradingView intervals
-        timezone: 'Etc/UTC',
-        theme: 'dark',
-        style: '1', // Candlestick chart
-        locale: 'en',
-        toolbar_bg: '#1a1e22',
-        enable_publishing: false,
-        allow_symbol_change: true,
-        container_id: 'tradingview_chart',
-      });
-    };
-    document.body.appendChild(script);
+    return data;
+  };
 
-    // Cleanup on unmount
-    return () => {
-      if (widgetRef.current) {
-        widgetRef.current.remove();
-      }
-      document.body.removeChild(script);
-    };
-  }, [selectedPair, chartTimeFrame]); // Re-render chart when pair or timeframe changes
+  useEffect(() => {
+    if (chartContainerRef.current) {
+      // Initialize the chart
+      chartRef.current = createChart(chartContainerRef.current, {
+        width,
+        height,
+        layout: {
+          background: { color: '#000000' },
+          textColor: '#333',
+        },
+        grid: {
+          vertLines: { color: '#000000' },
+          horzLines: { color: '#000000' },
+        },
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: false,
+        },
+      });
+
+      // Add candlestick series
+      seriesRef.current = chartRef.current.addCandlestickSeries({
+        upColor: '#26a69a',
+        downColor: '#ef5350',
+        borderVisible: false,
+        wickUpColor: '#26a69a',
+        wickDownColor: '#ef5350',
+      });
+
+      // Set initial data
+      const data = generateRandomData(selectedRange);
+      seriesRef.current.setData(data);
+
+      // Auto-resize chart on window resize
+      const handleResize = () => {
+        if (chartRef.current && chartContainerRef.current) {
+          chartRef.current.resize(
+            chartContainerRef.current.clientWidth,
+            chartContainerRef.current.clientHeight
+          );
+        }
+      };
+
+      window.addEventListener('resize', handleResize);
+
+      // Cleanup on unmount
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        if (chartRef.current) {
+          chartRef.current.remove();
+          chartRef.current = null;
+        }
+      };
+    }
+  }, [width, height]);
+
+  // Update chart data when the range changes
+  useEffect(() => {
+    if (seriesRef.current && chartRef.current) {
+      const data = generateRandomData(selectedRange);
+      seriesRef.current.setData(data);
+      chartRef.current.timeScale().fitContent();
+    }
+  }, [selectedRange]);
+
+  // Handle range selection
+  const handleRangeChange = (range: TimeRange) => {
+    setSelectedRange(range);
+  };
+
+  // Time range options
+  const timeRanges: TimeRange[] = ['1D', '5D', '1M', '1Y'];
 
   return (
-    <motion.div
-      className=" mr-4 p-4 flex flex-col"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-    >
-      {/* <div className="flex justify-between items-center mb-4">
-        <h2 className="text-[#E2C19B] text-lg font-semibold">{selectedPair}</h2>
-        <div className="flex space-x-2">
-          <motion.button
-            onClick={() => setActiveTab('high')}
-            className={`px-4 py-2 rounded font-semibold ${
-              activeTab === 'high'
-                ? 'bg-[#3EAFA4] text-[#F7EFDE]'
-                : 'bg-[#252a2f] text-[#E2C19B] hover:bg-[#E2C19B] hover:text-[#121418]'
+    <div className="w-full max-w-3xl mx-auto p-4 shadow-md rounded-lg bg-transparent">
+      {/* Range Switcher */}
+      <div className="mb-4 flex space-x-2">
+        {timeRanges.map((range) => (
+          <button
+            key={range}
+            onClick={() => handleRangeChange(range)}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              selectedRange === range
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
             }`}
-            whileHover={{ scale: 1.05 }}
           >
-            High
-          </motion.button>
-          <motion.button
-            onClick={() => setActiveTab('low')}
-            className={`px-4 py-2 rounded font-semibold ${
-              activeTab === 'low'
-                ? 'bg-[#3EAFA4] text-[#F7EFDE]'
-                : 'bg-[#252a2f] text-[#E2C19B] hover:bg-[#E2C19B] hover:text-[#121418]'
-            }`}
-            whileHover={{ scale: 1.05 }}
-          >
-            Low
-          </motion.button>
-        </div>
-      </div> */}
-
+            {range}
+          </button>
+        ))}
+      </div>
       {/* Chart Container */}
       <div
-        id="tradingview_chart"
         ref={chartContainerRef}
-        className="flex-grow rounded-lg"
+        style={{ width: '100%', height: `${height}px` }}
       />
-    </motion.div>
+    </div>
   );
 };
 
-export default Chart;
+export default CandlestickChart;

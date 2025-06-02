@@ -63,7 +63,7 @@ export function TradingWidget() {
   };
 
   return (
-    <Card className="w-full max-w-sm bg-black  border-gray-800">
+    <Card className="w-full max-w-sm bg-black  border-gray-800 hidden md:block">
       <CardContent className="p-6 space-y-4">
         {/* High/Low Toggle */}
         <div className="flex ">

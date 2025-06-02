@@ -20,6 +20,8 @@ import { PriceChart } from '@/components/price-chart';
 import { TransactionTable } from '@/components/transaction-table';
 import { TradingWidget } from '@/components/trading-widget';
 import Chart from '@/components/chart';
+import CandlestickChart from '@/components/chart';
+import { MobileTradingButtons } from '@/components/mobile-trading-buttons';
 
 const initialChartData = Array.from({ length: 60 }, (_, i) => ({
   time: Math.floor(Date.now() / 1000) - (60 - i) * 60,
@@ -151,12 +153,7 @@ export default function TokenPage({ params }: { params: { id: string } }) {
                   </div>
                 </div>
 
-                <Chart
-                  selectedPair={selectedPair}
-                  chartTimeFrame={chartTimeFrame}
-                  setChartTimeFrame={setChartTimeFrame}
-                  chartData={chartData}
-                />
+                <CandlestickChart width={750} height={250} />
 
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6">
                   <div className="text-center">
@@ -291,6 +288,7 @@ export default function TokenPage({ params }: { params: { id: string } }) {
               </CardContent>
             </Card>
           </motion.div>
+          <MobileTradingButtons />
         </>
       )}
     </div>
