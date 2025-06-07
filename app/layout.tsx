@@ -4,6 +4,7 @@ import { Inter, VT323 } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 import Header from '@/components/header';
+import Providers from '@/components/privyProvider';
 
 const inter = Inter({ subsets: ['latin'] });
 const vt323 = VT323({
@@ -33,8 +34,11 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          <Header />
-          <main className="">{children}</main>
+          {' '}
+          <Providers>
+            <Header />
+            <main className="">{children}</main>
+          </Providers>
         </ThemeProvider>
       </body>
     </html>
