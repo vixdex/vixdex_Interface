@@ -1,86 +1,87 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { CandlestickData, Time } from 'lightweight-charts';
+import { CandlestickData, Time, ISeriesApi } from 'lightweight-charts';
 
-// The shape of the incoming WebSocket price update payload.
 interface PriceUpdatePayload {
   price0: number;
   price1: number;
   timestamp: string;
 }
 
-// --- NEW HELPER FUNCTION ---
-/**
- * Safely converts the `Time` type from lightweight-charts into a millisecond timestamp.
- * This function handles all possible formats: string, number (timestamp), or BusinessDay object.
- * @param time The Time object from a candlestick data point.
- * @returns A numeric timestamp in milliseconds.
- */
 const timeToTimestamp = (time: Time): number => {
-  // If it's a string like "2025-06-12", convert it.
   if (typeof time === 'string') {
     return new Date(time).getTime();
   }
-  // If it's a number (Unix timestamp in seconds), convert to milliseconds.
   if (typeof time === 'number') {
     return time * 1000;
   }
-  // If it's a BusinessDay object, construct a date string and convert it.
-  // This is the key part that solves the TypeScript error.
   const date = new Date(Date.UTC(time.year, time.month - 1, time.day));
   return date.getTime();
 };
 
+// SOLUTION: Remove setData, use only seriesRef and direct updates
 export const useRealTimeUpdates = (
   room: string | null,
-  setData: React.Dispatch<React.SetStateAction<CandlestickData[]>>,
+  seriesRef: React.MutableRefObject<ISeriesApi<'Candlestick'> | null>,
   priceType: 'price0' | 'price1',
   interval: number
 ) => {
+  // Keep track of the last candle data internally
+  const lastCandleRef = useRef<CandlestickData | null>(null);
+
   useEffect(() => {
     if (!room || !interval) return;
     const socket: Socket = io("http://localhost:4000");
     socket.emit("subscribe", room);
-    console.log("subscribed to rooom",room);
+    console.log("subscribed to room", room);
 
     const handlePriceUpdate = (update: PriceUpdatePayload) => {
-      console.log(update)
-      setData(prevData => {
-        if (prevData.length === 0) return prevData;
+      console.log(update);
+      
+      if (!seriesRef.current) return;
 
-        const lastCandle = { ...prevData[prevData.length - 1] };
-        const newPrice = update[priceType];
-        if (newPrice === undefined) return prevData;
+      const newPrice = update[priceType];
+      if (newPrice === undefined) return;
 
-        // MODIFIED: Use the safe helper function to get timestamps.
-        const lastCandleStartTime = timeToTimestamp(lastCandle.time);
-        const updateTimestamp = new Date(update.timestamp).getTime();
-        const lastCandleEndTime = lastCandleStartTime + interval;
+      const updateTimestamp = new Date(update.timestamp).getTime();
 
-        if (updateTimestamp < lastCandleEndTime) {
-          // Case 1: UPDATE the existing candle
-          lastCandle.high = Math.max(lastCandle.high, newPrice);
-          lastCandle.low = Math.min(lastCandle.low, newPrice);
-          lastCandle.close = newPrice;
-          
-          return [...prevData.slice(0, -1), lastCandle];
+      // If we don't have a reference to the last candle, skip this update
+      if (!lastCandleRef.current) return;
 
-        } else {
-          // Case 2: CREATE a new candle
-          const newCandleStartTime = Math.floor(updateTimestamp / interval) * interval;
-          const newCandleTimeKey = new Date(newCandleStartTime).toISOString().split('T')[0];
+      const lastCandle = lastCandleRef.current;
+      const lastCandleStartTime = timeToTimestamp(lastCandle.time);
+      const lastCandleEndTime = lastCandleStartTime + interval;
 
-          const newCandle: CandlestickData = {
-            time: newCandleTimeKey,
-            open: newPrice,
-            high: newPrice,
-            low: newPrice,
-            close: newPrice,
-          };
+      if (updateTimestamp < lastCandleEndTime) {
+        // Case 1: UPDATE the existing candle
+        const updatedCandle: CandlestickData = {
+          ...lastCandle,
+          high: Math.max(lastCandle.high, newPrice),
+          low: Math.min(lastCandle.low, newPrice),
+          close: newPrice,
+        };
+        
+        // Update the chart directly - this preserves zoom/scroll
+        seriesRef.current.update(updatedCandle);
+        lastCandleRef.current = updatedCandle;
 
-          return [...prevData, newCandle];
-        }
-      });
+      } else {
+        // Case 2: CREATE a new candle
+        const newCandleStartTime = Math.floor(updateTimestamp / interval) * interval;
+        const newCandleTimeKey = new Date(newCandleStartTime).toISOString().split('T')[0];
+
+        const newCandle: CandlestickData = {
+          time: newCandleTimeKey,
+          open: newPrice,
+          high: newPrice,
+          low: newPrice,
+          close: newPrice,
+        };
+
+        // Add new candle to chart - this also preserves zoom/scroll
+        seriesRef.current.update(newCandle);
+        lastCandleRef.current = newCandle;
+      }
     };
 
     socket.on("priceUpdate", handlePriceUpdate);
@@ -89,5 +90,14 @@ export const useRealTimeUpdates = (
       socket.emit("unsubscribe", room);
       socket.disconnect();
     };
-  }, [room, setData, priceType, interval]);
+  }, [room, seriesRef, priceType, interval]);
+
+  // Expose a function to sync the last candle when data loads
+  return {
+    syncLastCandle: (data: CandlestickData[]) => {
+      if (data.length > 0) {
+        lastCandleRef.current = data[data.length - 1];
+      }
+    }
+  };
 };

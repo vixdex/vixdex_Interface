@@ -5,7 +5,6 @@ import { createChart, IChartApi, ISeriesApi } from 'lightweight-charts';
 import { useHistoricalPrices, TimeRange } from '@/hooks/useHistoricalPrices';
 import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
 
-// Props interface remains the same
 interface CandlestickChartProps {
   networkId: string;
   poolId: string;
@@ -14,7 +13,6 @@ interface CandlestickChartProps {
   height?: number;
 }
 
-// 1. Add the intervalMap to calculate intervals from time ranges
 const intervalMap: Record<TimeRange, number> = {
   '1H': 60 * 60 * 1000,
   '1D': 24 * 60 * 60 * 1000,
@@ -34,57 +32,58 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>('1D');
 
-  // 2. Calculate the interval based on the selected timeRange
   const interval = intervalMap[timeRange];
-
-  // 3. Pass the calculated interval to both hooks
-  const { data, isLoading, error, setData } = useHistoricalPrices(networkId, poolId, interval, priceType);
+  const { data, isLoading, error } = useHistoricalPrices(networkId, poolId, interval, priceType);
   const room = poolId ? poolId.toLowerCase() : `network-${networkId}`;
-  useRealTimeUpdates(room, setData, priceType, interval);
+  
+  // SOLUTION: Only pass seriesRef, no setData
+  const { syncLastCandle } = useRealTimeUpdates(room, seriesRef, priceType, interval);
 
   useEffect(() => {
-  if (chartContainerRef.current && !chartRef.current) {
-    chartRef.current = createChart(chartContainerRef.current, {
-      width,
-      height,
-      layout: { background: { color: 'transparent' }, textColor: '#DDD' },
-      grid: { vertLines: { color: '#333' }, horzLines: { color: '#333' } },
-      timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#555' },
-      crosshair: { mode: 1 },
-    });
-    seriesRef.current = chartRef.current.addCandlestickSeries({
-      upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
-      wickUpColor: '#26a69a', wickDownColor: '#ef5350',
-    });
-  }
+    if (chartContainerRef.current && !chartRef.current) {
+      chartRef.current = createChart(chartContainerRef.current, {
+        width,
+        height,
+        layout: { background: { color: 'transparent' }, textColor: '#DDD' },
+        grid: { vertLines: { color: '#333' }, horzLines: { color: '#333' } },
+        timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#555' },
+        crosshair: { mode: 1 },
+      });
+      seriesRef.current = chartRef.current.addCandlestickSeries({
+        upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
+        wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+      });
+    }
 
-  // --- UPDATED: Add error handling for data setting ---
-  if (seriesRef.current && data.length > 0) {
-    try {
-      seriesRef.current.setData(data);
-      chartRef.current?.timeScale().fitContent();
-    } catch (error) {
-      console.error('Error setting chart data:', error);
-      console.log('Problematic data:', data);
-      
-      // Optional: Clear the chart on error to prevent broken state
-      if (seriesRef.current) {
-        seriesRef.current.setData([]);
+    // SOLUTION: Only use setData for historical loads and major changes
+    if (seriesRef.current && data.length > 0) {
+      try {
+        seriesRef.current.setData(data);
+        chartRef.current?.timeScale().fitContent();
+        
+        // Sync the last candle with the real-time hook
+        syncLastCandle(data);
+        
+      } catch (error) {
+        console.error('Error setting chart data:', error);
+        console.log('Problematic data:', data);
+        if (seriesRef.current) {
+          seriesRef.current.setData([]);
+        }
       }
     }
-  }
 
-  const handleResize = () => chartRef.current?.resize(chartContainerRef.current!.clientWidth, chartContainerRef.current!.clientHeight);
-  window.addEventListener('resize', handleResize);
+    const handleResize = () => chartRef.current?.resize(chartContainerRef.current!.clientWidth, chartContainerRef.current!.clientHeight);
+    window.addEventListener('resize', handleResize);
 
-  return () => {
-    window.removeEventListener('resize', handleResize);
-    if (chartRef.current) {
-      chartRef.current.remove();
-      chartRef.current = null;
-    }
-  };
-}, [data, width, height]);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (chartRef.current) {
+        chartRef.current.remove();
+        chartRef.current = null;
+      }
+    };
+  }, [data, width, height, syncLastCandle]);
 
   const timeRangeOptions: TimeRange[] = ['1H', '1D', '1W', '1M'];
 
