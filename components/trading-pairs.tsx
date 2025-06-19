@@ -38,6 +38,8 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
             id: '1',
             name: 'SHIB/USDC',
             swing: 'High',
+            perc: '0.03',
+
             baseSymbol: 'SHIB',
             quoteSymbol: 'USDC',
             price: '$0.0527',
@@ -50,6 +52,8 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
             id: '2',
             name: 'USDC/BTC',
             swing: 'Low',
+            perc: '0.03',
+
             baseSymbol: 'USDC',
             quoteSymbol: 'BTC',
             price: '$0.0527',
@@ -62,6 +66,7 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
             id: '3',
             name: 'SHIB/ETH',
             swing: 'High',
+            perc: '0.03',
 
             baseSymbol: 'SHIB',
             quoteSymbol: 'ETH',
@@ -75,6 +80,7 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
             id: '4',
             name: 'SHIB/USDC',
             swing: 'High',
+            perc: '0.03',
 
             baseSymbol: 'SHIB',
             quoteSymbol: 'USDC',
@@ -88,6 +94,7 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
             id: '5',
             name: 'USDC/BTC',
             swing: 'Low',
+            perc: '0.03',
 
             baseSymbol: 'USDC',
             quoteSymbol: 'BTC',
@@ -101,7 +108,7 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
             id: '6',
             name: 'SHIB/ETH',
             swing: 'Low',
-
+            perc: '0.03',
             baseSymbol: 'SHIB',
             quoteSymbol: 'ETH',
             price: '$0.00003',
@@ -128,11 +135,12 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
       <thead>
         <tr className="text-xs text-muted-foreground border-b   border-border/80">
           <th className="text-left pb-2 pl-2">Derive Name</th>
-          <th className="text-right pb-2 ">Price</th>
+          <th className="text-right pb-2 ">High Price</th>
+          <th className="text-right pb-2 "> Low Price</th>
           <th className="text-right pb-2 hidden md:table-cell">
             VFTs marketcap
           </th>
-          <th className="text-right pb-2 hidden md:table-cell">24h Change</th>
+
           <th className="text-right pb-2 hidden md:table-cell">Current IV</th>
 
           <th className="text-right pb-2 pr-2">Action</th>
@@ -160,7 +168,7 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
                 </div>
                 <div>
                   <div className="font-medium">{pair.name}</div>
-                  <div className="flex items-center">
+                  {/* <div className="flex items-center">
                     <div
                       className={`text-xs px-2 py-0.5 rounded ${
                         pair.swing === 'High'
@@ -182,15 +190,24 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
                       )}
                       {Math.abs(pair.change24h)}%
                     </div>
+                  </div> */}
+                  <div className="flex items-center">
+                    {' '}
+                    <div className={`text-xs px-2 py-0.5 rounded `}>
+                      {pair.perc}
+                    </div>
                   </div>
                 </div>
               </Link>
             </td>
             <td className="text-right py-3">{pair.price}</td>
+
+            <td className="text-right py-3">{pair.price}</td>
+
             <td className="text-right py-3 hidden md:table-cell">
               {pair.marketCap}
             </td>
-            <td className="text-right py-3 hidden md:table-cell">
+            {/* <td className="text-right py-3 hidden md:table-cell">
               <div
                 className={`flex items-center justify-end ${
                   pair.change24h > 0 ? 'text-success' : 'text-destructive'
@@ -203,7 +220,7 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
                 )}
                 {Math.abs(pair.change24h)}%
               </div>
-            </td>
+            </td> */}
             <td className="text-right py-3 hidden md:table-cell">
               {pair.currentIV}
             </td>

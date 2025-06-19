@@ -11,10 +11,17 @@ import Link from 'next/link';
 import { ArrowBigLeftDashIcon } from 'lucide-react';
 import Image from 'next/image';
 import logo from '../../public/vixdex_background_remove.png';
+import { useCreateDerive } from '@/hooks/create-derive';
 
 export default function CreateDerivePage() {
   const [poolAddress, setPoolAddress] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { createDerive } = useCreateDerive();
+  const [txData, setTxData] = useState<null | {
+    txHash: string;
+    highToken: string;
+    lowToken: string;
+  }>(null);
 
   const handleCreatePool = async () => {
     if (!poolAddress.trim()) {
@@ -29,14 +36,24 @@ export default function CreateDerivePage() {
     setIsLoading(true);
 
     // Simulate API call
-    setTimeout(() => {
+    try {
+      const deriveToken = poolAddress;
+      const result = await createDerive(deriveToken, poolAddress);
+
+      if (result) {
+        setTxData({
+          txHash: result.txHash,
+          highToken: result.highToken,
+          lowToken: result.lowToken,
+        });
+      } else {
+        console.warn('❗ createDerive returned undefined');
+      }
+    } catch (err) {
+      console.error('❌ Error:', err);
+    } finally {
       setIsLoading(false);
-      toast({
-        title: 'Success',
-        description: 'Pool created successfully!',
-      });
-      setPoolAddress('');
-    }, 2000);
+    }
   };
 
   return (
@@ -105,6 +122,14 @@ export default function CreateDerivePage() {
           </Card>
         </motion.div>
       </div>
+
+      {txData && (
+        <div className="mt-4 text-sm text-green-600">
+          <p>✅ Transaction Hash: {txData.txHash}</p>
+          <p>High Token: {txData.highToken}</p>
+          <p>Low Token: {txData.lowToken}</p>
+        </div>
+      )}
     </div>
   );
 }
