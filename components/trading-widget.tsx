@@ -7,6 +7,7 @@ import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import {useSwap} from "@/hooks/swap";
 import {
   Select,
   SelectContent,
@@ -45,7 +46,7 @@ export function TradingWidget() {
   const [selectedAmount, setSelectedAmount] = useState<string>('1$');
   const [customAmount, setCustomAmount] = useState<string>('1');
   const [selectedToken, setSelectedToken] = useState<string>('shib');
-
+  let {buy,sell} = useSwap();
   const amounts = ['1$', '10$', '20$'];
   const currentToken =
     tokens.find((token) => token.id === selectedToken) || tokens[0];
@@ -60,6 +61,7 @@ export function TradingWidget() {
   const handleCustomAmountChange = (value: string) => {
     setCustomAmount(value);
     setSelectedAmount('');
+    console.log('Custom amount changed:', value);
   };
 
   return (

@@ -22,6 +22,9 @@ import { TradingWidget } from '@/components/trading-widget';
 import Chart from '@/components/chart';
 import CandlestickChart from '@/components/chart';
 import { MobileTradingButtons } from '@/components/mobile-trading-buttons';
+import { ethers } from 'ethers';
+  import { useWallets } from '@privy-io/react-auth';
+import axios from 'axios';
 
 const initialChartData = Array.from({ length: 60 }, (_, i) => ({
   time: Math.floor(Date.now() / 1000) - (60 - i) * 60,
@@ -40,29 +43,74 @@ export default function TokenPage({ params }: { params: { id: string } }) {
   const [chartData, setChartData] = useState(initialChartData);
   const [chartTimeFrame, setChartTimeFrame] = useState('1m');
   const [selectedPair, setSelectedPair] = useState(mockPairs[0].pair);
-
+  let { wallets } = useWallets();
   useEffect(() => {
-    // Simulate API fetch
     const fetchToken = async () => {
-      // In a real app, this would be an API call using params.id
-      setTimeout(() => {
-        setToken({
-          id: params.id,
-          name: 'SHIB/USDC HIGH TOKEN',
-          symbol: 'SHIB',
-          price: '0.00000235',
-          change24h: 2.4,
-          marketCap: '26.1%',
-          averageIV: '-40.1%',
-          volume: '261%',
-          icon: 'https://assets.coingecko.com/coins/images/11939/large/shiba.png',
-        });
-        setLoading(false);
-      }, 1500);
+      if (wallets.length === 0) {
+        console.warn('No wallets connected yet.');
+        return;
+      }
+
+      const wallet = wallets[0];
+      if (!wallet?.getEthereumProvider) {
+        console.error('Wallet does not support getEthereumProvider');
+        return;
+      }
+
+      console.log('Using wallet:', wallet);
+
+      const privyProvider = await wallet.getEthereumProvider();
+      const ethersProvider = new ethers.BrowserProvider(privyProvider);
+      const signer = await ethersProvider.getSigner();
+
+      const VIX_CONTRACT_ABI = [
+  'function getVixData(address poolAdd) view returns (address vixHighToken, address _vixLowToken, uint256 _circulation0, uint256 _circulation1, uint256 _contractHoldings0, uint256 _contractHoldings1, uint256 _reserve0, uint256 _reserve1, address _poolAddress)',
+  'function vixTokensPrice(uint contractHoldings) view returns(uint)'
+];
+      const vixContract = new ethers.Contract(
+          process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS!,
+          VIX_CONTRACT_ABI,
+          signer
+        );
+        const vixData = await vixContract.getVixData(params.id);
+      console.log('VIX Data:', vixData);
+      console.log('VIX High Token:', vixData.vixHighToken);
+      const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${params.id}?include=quote_token`;
+      console.log('Fetching data from:', geckoTerminalURL);
+      const response = await fetch(geckoTerminalURL);
+
+        if (!response.ok) {
+          throw new Error(`Error fetching data: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log(data);
+      // Simulated token data; replace with contract call
+      let token0Price = await vixContract.vixTokensPrice(vixData._contractHoldings0);
+      let token1Price = await vixContract.vixTokensPrice(vixData._contractHoldings1);
+      console.log('Token0 Price:', token0Price);
+      console.log('Token1 Price:', token1Price);
+      let highTokenPrice = ethers.formatEther(token0Price);
+      let lowTokenPrice = ethers.formatEther(token1Price);  
+      console.log('High Token Price:', highTokenPrice);
+      console.log('Low Token Price:', lowTokenPrice);
+      setToken({
+        id: params.id,
+        name: data.data.attributes.name,
+        symbol: data.data.attributes.pool_name,
+        price: highTokenPrice+"$",
+        change24h: 2.4,
+        marketCap: '200k$',
+        averageIV: '40.1%',
+        volume: '12M$',
+        icon: data.included[0].attributes.image_url,
+      });
+
+      setLoading(false);
     };
 
     fetchToken();
-  }, [params.id]);
+  }, [wallets, params.id]);
 
   return (
     <div className="container  py-6 space-y-6 relative ">
