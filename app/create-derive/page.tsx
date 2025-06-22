@@ -12,11 +12,16 @@ import { ArrowBigLeftDashIcon } from 'lucide-react';
 import Image from 'next/image';
 import logo from '../../public/vixdex_background_remove.png';
 import { useCreateDerive } from '@/hooks/create-derive';
+import {useWallets } from '@privy-io/react-auth';
+import { ethers } from 'ethers';
+import {sortTokenAddresses} from "@/utils/tokenOrder.js"
 
 export default function CreateDerivePage() {
   const [poolAddress, setPoolAddress] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { createDerive } = useCreateDerive();
+  let {wallets} = useWallets();
+
   const [txData, setTxData] = useState<null | {
     txHash: string;
     highToken: string;
@@ -39,13 +44,32 @@ export default function CreateDerivePage() {
     try {
       const deriveToken = poolAddress;
       const result = await createDerive(deriveToken, poolAddress);
-
+      console.log('Create Derive Result:', result);
       if (result) {
         setTxData({
           txHash: result.txHash,
           highToken: result.highToken,
           lowToken: result.lowToken,
         });
+         const wallet = wallets[0]; // or select preferred wallet
+        const privyProvider = await wallet.getEthereumProvider();
+        const ethersProvider = new ethers.BrowserProvider(privyProvider);
+        const signer = await ethersProvider.getSigner();
+        const ROUTER_CONTRACT_ABI = [
+          "function createPool(address _token0,address _token1,uint24 lpFee,int24 tickSpacing,address hookContract,uint160 sqrtStartPriceX96)"
+        ] 
+        let routerContract = new ethers.Contract(process.env.NEXT_PUBLIC_VIX_ROUTER_ADDRESS,ROUTER_CONTRACT_ABI,signer)
+        let [token0, token1] = sortTokenAddresses(result.highToken,process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS)
+        console.log('Token0:', token0);
+        console.log('Token1:', token1);
+        console.log('Router Contract Address:', process.env.NEXT_PUBLIC_VIX_ROUTER_ADDRESS);
+        let initializeHighTokenPool =  await routerContract.createPool(token0,token1,3000,60,process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS,ethers.toBigInt("79228162514264337593543950336"))
+        const receipt = await initializeHighTokenPool.wait();
+        let [Ltoken0, Ltoken1] = sortTokenAddresses(result.lowToken,process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS)
+        let initializeLowTokenPool =  await routerContract.createPool(Ltoken0,Ltoken1,3000,60,process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS,ethers.toBigInt("79228162514264337593543950336"))
+        const receipt2 = await initializeLowTokenPool.wait();
+        console.log('Transaction Receipt:', receipt);
+        console.log('✅ Pool created successfully:', initializeHighTokenPool);
       } else {
         console.warn('❗ createDerive returned undefined');
       }
