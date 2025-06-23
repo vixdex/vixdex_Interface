@@ -4,150 +4,227 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowDown, ArrowUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useWallets } from '@privy-io/react-auth';
+import { ethers } from 'ethers';
+import { fetchPairInitiatedEvents } from '@/lib/fetchEvents';
 
-interface TradingPairsProps {
-  loading?: boolean;
-}
-
-interface TradingPair {
+export type TokenInfo = {
   id: string;
   name: string;
-  swing: string;
-  baseSymbol: string;
-  quoteSymbol: string;
-  price: string;
+  symbol: string;
+  priceHigh: string;
+  priceLow: string;
+  circulation0: string;
+  circulation1 : string;
+  icon0: string;
+  icon1: string;
+  deriveToken: string;
   marketCap: string;
-  change24h: number;
   currentIV: string;
-  icon: string;
+  change24h: number;
+  perc?: string | number;
+};
+
+interface TradingPairsProps {
+  onFetched?: (data: TokenInfo[]) => void;
 }
 
-export function TradingPairs({ loading = false }: TradingPairsProps) {
-  const [pairs, setPairs] = useState<TradingPair[]>([]);
+const VIX_ABI = [
+  'function getVixData(address poolAdd) view returns (address vixHighToken, address _vixLowToken, uint256 _circulation0, uint256 _circulation1, uint256 _contractHoldings0, uint256 _contractHoldings1, uint256 _reserve0, uint256 _reserve1, address _poolAddress)',
+  'function vixTokensPrice(uint contractHoldings) view returns(uint)'
+];
+
+export function TradingPairs({ onFetched }: TradingPairsProps) {
+  const [tokens, setTokens] = useState<TokenInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { wallets } = useWallets();
 
   useEffect(() => {
-    // Simulate API fetch
-    const fetchPairs = async () => {
-      // In a real app, this would be an API call
-      setTimeout(() => {
-        setPairs([
-          {
-            id: '1',
-            name: 'SHIB/USDC',
-            swing: 'High',
-            perc: '0.03',
+    const fetchAllData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-            baseSymbol: 'SHIB',
-            quoteSymbol: 'USDC',
-            price: '$0.0527',
-            marketCap: '$200K',
-            change24h: 2.4,
-            currentIV: '48%',
-            icon: 'https://assets.coingecko.com/coins/images/11939/large/shiba.png',
-          },
-          {
-            id: '2',
-            name: 'USDC/BTC',
-            swing: 'Low',
-            perc: '0.03',
+        // Check if VIX contract address is configured
+        if (!process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS) {
+          throw new Error("VIX contract address not configured");
+        }
 
-            baseSymbol: 'USDC',
-            quoteSymbol: 'BTC',
-            price: '$0.0527',
-            marketCap: '$200K',
-            change24h: -2.3,
-            currentIV: '90.23%',
-            icon: 'https://assets.coingecko.com/coins/images/6319/large/USD_Coin_icon.png',
-          },
-          {
-            id: '3',
-            name: 'SHIB/ETH',
-            swing: 'High',
-            perc: '0.03',
+        // For event fetching, we don't need wallet connection
+        // But for contract calls, we do need it
+        let provider: ethers.Provider;
+        
+        if (wallets.length > 0) {
+          const wallet = wallets[0];
+          const privyProvider = await wallet.getEthereumProvider();
+          provider = new ethers.BrowserProvider(privyProvider);
+        } else {
+          // Fallback to RPC provider if no wallet connected
+          provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://rpc.buildbear.io/dual-magma-e6ae5bf5");
+        }
 
-            baseSymbol: 'SHIB',
-            quoteSymbol: 'ETH',
-            price: '$0.00003',
-            marketCap: '$200K',
-            change24h: 2.4,
-            currentIV: '0.284%',
-            icon: 'https://assets.coingecko.com/coins/images/11939/large/shiba.png',
-          },
-          {
-            id: '4',
-            name: 'SHIB/USDC',
-            swing: 'High',
-            perc: '0.03',
+        const contract = new ethers.Contract(
+          process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS,
+          VIX_ABI,
+          provider
+        );
 
-            baseSymbol: 'SHIB',
-            quoteSymbol: 'USDC',
-            price: '$0.0527',
-            marketCap: '$200K',
-            change24h: 2.4,
-            currentIV: '48%',
-            icon: 'https://assets.coingecko.com/coins/images/11939/large/shiba.png',
-          },
-          {
-            id: '5',
-            name: 'USDC/BTC',
-            swing: 'Low',
-            perc: '0.03',
+        // Fetch events
+        console.log("Fetching pair initiated events...");
+        const events = await fetchPairInitiatedEvents();
+        console.log(`Found ${events.length} events`);
 
-            baseSymbol: 'USDC',
-            quoteSymbol: 'BTC',
-            price: '$0.0527',
-            marketCap: '$200K',
-            change24h: -2.3,
-            currentIV: '90.23%',
-            icon: 'https://assets.coingecko.com/coins/images/6319/large/USD_Coin_icon.png',
-          },
-          {
-            id: '6',
-            name: 'SHIB/ETH',
-            swing: 'Low',
-            perc: '0.03',
-            baseSymbol: 'SHIB',
-            quoteSymbol: 'ETH',
-            price: '$0.00003',
-            marketCap: '$200K',
-            change24h: 2.4,
-            currentIV: '0.284%',
-            icon: 'https://assets.coingecko.com/coins/images/11939/large/shiba.png',
-          },
-        ]);
-      }, 1000);
+        if (events.length === 0) {
+          setTokens([]);
+          setLoading(false);
+          return;
+        }
+
+        const result: TokenInfo[] = [];
+
+        for (const event of events) {
+          try {
+            const deriveToken = event.deriveToken;
+            console.log(`Processing derive token: ${deriveToken}`);
+
+            // Get VIX data for this derive token
+            const vixData = await contract.getVixData(deriveToken);
+
+            if (!vixData || vixData._poolAddress === ethers.ZeroAddress) {
+              console.log(`Skipping ${deriveToken} - no valid pool address`);
+              continue;
+            }
+
+            const poolAddress = vixData._poolAddress;
+
+            // Get token prices
+            const token0Price = await contract.vixTokensPrice(vixData._contractHoldings0);
+            const token1Price = await contract.vixTokensPrice(vixData._contractHoldings1);
+
+            const circulation0 = await contract.vixTokensPrice(vixData._circulation0);
+            const circulation1 = await contract.vixTokensPrice(vixData._circulation1);
+
+
+          
+            const priceHigh = parseFloat(ethers.formatEther(token0Price)).toFixed(6);
+            const priceLow = parseFloat(ethers.formatEther(token1Price)).toFixed(6);
+
+            
+
+            // Fetch additional data from GeckoTerminal if configured
+            let tokenData = {
+              name: `Pool ${poolAddress.slice(0, 8)}...`,
+              symbol: `${deriveToken.slice(0, 6)}...`,
+              icon0: '/placeholder.svg',
+              icon1: '/placeholder.svg',
+              perc : "",
+            };
+
+            if (process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL && process.env.NEXT_PUBLIC_NETWORK) {
+              try {
+                const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${poolAddress}?include=base_token%2Cquote_token`;
+                const res = await fetch(geckoTerminalURL);
+
+                if (res.ok) {
+                  const data = await res.json();
+                  tokenData = {
+                    name: data.data?.attributes?.name || tokenData.name,
+                    symbol: data.data?.attributes?.pool_name || tokenData.symbol,
+                    icon0: data.included?.[0]?.attributes?.image_url || tokenData.icon0,
+                    icon1: data.included?.[1]?.attributes?.image_url || tokenData.icon1,
+                    perc : data.data?.attributes?.pool_fee_percentage 
+                  };
+                }
+              } catch (geckoError) {
+                console.warn("Failed to fetch GeckoTerminal data:", geckoError);
+              }
+            }
+
+            result.push({
+              id: poolAddress,
+              name: tokenData.name,
+              symbol: tokenData.symbol,
+              icon0: tokenData.icon0,
+              icon1: tokenData.icon1,
+              circulation0 : `$${circulation0}`,
+              circulation1 :`$${circulation1}`,
+              priceHigh: `$${priceHigh}`,
+              priceLow: `$${priceLow}`,
+              deriveToken,
+              marketCap: '200k$', // placeholder - you can calculate this
+              currentIV: '40.1%', // placeholder - you can calculate this from event.initiatedIV
+              change24h: Math.random() > 0.5 ? 2.4 : -1.2, // placeholder
+              perc: tokenData.perc // placeholder
+            });
+
+            console.log("dummy :" , result)
+
+          } catch (err) {
+            console.warn(`Skipping pair ${event.deriveToken} due to error:`, err);
+            continue;
+          }
+        }
+
+        console.log(`Successfully processed ${result.length} trading pairs`);
+        setTokens(result);
+        
+        // Call the onFetched callback if provided
+        if (onFetched) {
+          onFetched(result);
+        }
+
+      } catch (error) {
+        console.error("Error fetching token data:", error);
+        setError(error instanceof Error ? error.message : "Failed to fetch trading pairs");
+      } finally {
+        setLoading(false);
+      }
     };
 
-    if (!loading) {
-      fetchPairs();
-    }
-  }, [loading]);
+    fetchAllData();
+  }, [wallets, onFetched]);
 
-  if (loading) {
-    return <TradingPairsSkeleton />;
+  if (loading) return <TradingPairsSkeleton />;
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-500 mb-4">Error: {error}</p>
+        <Button 
+          onClick={() => window.location.reload()} 
+          variant="outline"
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  if (tokens.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-muted-foreground">No trading pairs found</p>
+      </div>
+    );
   }
 
   return (
     <table className="w-full">
       <thead>
-        <tr className="text-xs text-muted-foreground border-b   border-border/80">
+        <tr className="text-xs text-muted-foreground border-b border-border/80">
           <th className="text-left pb-2 pl-2">Derive Name</th>
-          <th className="text-right pb-2 ">High Price</th>
-          <th className="text-right pb-2 "> Low Price</th>
-          <th className="text-right pb-2 hidden md:table-cell">
-            VFTs marketcap
-          </th>
-
+          <th className="text-right pb-2">High Price</th>
+          <th className="text-right pb-2">Low Price</th>
+          <th className="text-right pb-2 hidden md:table-cell">Marketcap</th>
           <th className="text-right pb-2 hidden md:table-cell">Current IV</th>
-
           <th className="text-right pb-2 pr-2">Action</th>
         </tr>
       </thead>
       <tbody>
-        {pairs.map((pair, index) => (
+        {tokens.map((pair, index) => (
           <motion.tr
             key={pair.id}
             className="border-b border-border/10 hover:bg-card/80"
@@ -157,76 +234,43 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
           >
             <td className="py-3 pl-2">
               <Link href={`/token/${pair.id}`} className="flex items-center">
-                <div className="w-6 h-6 mr-2 relative">
-                  <Image
-                    src={pair.icon || '/placeholder.svg'}
-                    alt={pair.baseSymbol}
-                    width={24}
-                    height={24}
-                    className="rounded-full"
-                  />
-                </div>
+            <div className="relative w-10 h-6 mr-2">
+  <Image
+    src={pair.icon0}
+    alt={pair.symbol}
+    width={24}
+    height={24}
+    className="rounded-full absolute z-10 border-2 border-background"
+    onError={(e) => {
+      const target = e.target as HTMLImageElement;
+      target.src = '/placeholder.svg';
+    }}
+  />
+  <Image
+    src={pair.icon1}
+    alt={pair.symbol}
+    width={24}
+    height={24}
+    className="rounded-full absolute left-3 z-0 border-2 border-background"
+    onError={(e) => {
+      const target = e.target as HTMLImageElement;
+      target.src = '/placeholder.svg';
+    }}
+  />
+</div>
+
                 <div>
                   <div className="font-medium">{pair.name}</div>
-                  {/* <div className="flex items-center">
-                    <div
-                      className={`text-xs px-2 py-0.5 rounded ${
-                        pair.swing === 'High'
-                          ? 'bg-green-200 text-green-800'
-                          : 'bg-yellow-200 text-yellow-800'
-                      }`}
-                    >
-                      {pair.swing}
-                    </div>
-                    <div
-                      className={`flex items-center justify-end  md:hidden ${
-                        pair.change24h > 0 ? 'text-success' : 'text-destructive'
-                      }`}
-                    >
-                      {pair.change24h > 0 ? (
-                        <ArrowUp className="h-3 w-3 mr-1" />
-                      ) : (
-                        <ArrowDown className="h-3 w-3 mr-1" />
-                      )}
-                      {Math.abs(pair.change24h)}%
-                    </div>
-                  </div> */}
-                  <div className="flex items-center">
-                    {' '}
-                    <div className={`text-xs px-2 py-0.5 rounded `}>
-                      {pair.perc}
-                    </div>
-                  </div>
+                  <div className="text-xs text-muted-foreground">{pair.perc}%</div>
                 </div>
               </Link>
             </td>
-            <td className="text-right py-3">{pair.price}</td>
-
-            <td className="text-right py-3">{pair.price}</td>
-
-            <td className="text-right py-3 hidden md:table-cell">
-              {pair.marketCap}
-            </td>
-            {/* <td className="text-right py-3 hidden md:table-cell">
-              <div
-                className={`flex items-center justify-end ${
-                  pair.change24h > 0 ? 'text-success' : 'text-destructive'
-                }`}
-              >
-                {pair.change24h > 0 ? (
-                  <ArrowUp className="h-3 w-3 mr-1" />
-                ) : (
-                  <ArrowDown className="h-3 w-3 mr-1" />
-                )}
-                {Math.abs(pair.change24h)}%
-              </div>
-            </td> */}
-            <td className="text-right py-3 hidden md:table-cell">
-              {pair.currentIV}
-            </td>
-
+            <td className="text-right py-3">{pair.priceHigh}</td>
+            <td className="text-right py-3">{pair.priceLow}</td>
+            <td className="text-right py-3 hidden md:table-cell">{pair.marketCap}</td>
+            <td className="text-right py-3 hidden md:table-cell">{pair.currentIV}</td>
             <td className="text-right py-3 pr-2">
-              <Link href={`/token/${pair.id}`}>
+              <Link href={`/token/${pair.deriveToken}`}>
                 <Button
                   size="sm"
                   variant={pair.change24h > 0 ? 'outline' : 'destructive'}
@@ -250,16 +294,7 @@ export function TradingPairs({ loading = false }: TradingPairsProps) {
 function TradingPairsSkeleton() {
   return (
     <div className="space-y-4">
-      <div className="flex justify-between">
-        <Skeleton className="h-4 w-[120px]" />
-        <Skeleton className="h-4 w-[60px]" />
-        <Skeleton className="h-4 w-[100px]" />
-        <Skeleton className="h-4 w-[80px]" />
-        <Skeleton className="h-4 w-[80px]" />
-        <Skeleton className="h-4 w-[60px]" />
-      </div>
-
-      {[1, 2, 3, 4, 5, 6].map((i) => (
+      {[...Array(6)].map((_, i) => (
         <div
           key={i}
           className="flex justify-between items-center py-3 border-b border-border/10"
@@ -272,7 +307,7 @@ function TradingPairsSkeleton() {
             </div>
           </div>
           <Skeleton className="h-4 w-[60px]" />
-          <Skeleton className="h-4 w-[80px]" />
+          <Skeleton className="h-4 w-[60px]" />
           <Skeleton className="h-4 w-[60px]" />
           <Skeleton className="h-4 w-[60px]" />
           <Skeleton className="h-8 w-[60px] rounded-md" />

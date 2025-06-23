@@ -31,15 +31,22 @@ const tokens: Token[] = [
     icon: 'https://assets.coingecko.com/coins/images/6319/large/USD_Coin_icon.png',
     balance: '1250.50',
   },
-
   {
-    id: 'btc',
-    name: 'Bitcoin',
-    symbol: 'BTC',
-    icon: 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png',
+    id: 'High',
+    name: 'High Token',
+    symbol: 'H',
+    icon: '', // leave blank, will render Avatar
+    balance: '0.125',
+  },
+  {
+    id: 'Low',
+    name: 'Low Token',
+    symbol: 'L',
+    icon: '', // leave blank, will render Avatar
     balance: '0.125',
   },
 ];
+
 
 export function TradingWidget() {
   const [selectedType, setSelectedType] = useState<'High' | 'Low'>('High');
@@ -68,7 +75,7 @@ export function TradingWidget() {
     <Card className="w-full max-w-sm bg-black  border-gray-800 hidden md:block">
       <CardContent className="p-6 space-y-4">
         {/* High/Low Toggle */}
-        <div className="flex ">
+        <div className="flex space-x-4">
           <Button
             onClick={() => setSelectedType('High')}
             className={`flex-1 h-12 rounded-2xl font-medium text-lg ${
@@ -92,12 +99,12 @@ export function TradingWidget() {
         </div>
 
         {/* Amount Selection */}
-        <div className="flex gap-x-6 ">
+        <div className="flex  justify-between ">
           {amounts.map((amount) => (
             <Button
               key={amount}
               onClick={() => handleAmountSelect(amount)}
-              className={`px-4  rounded-full text-sm font-medium border-0 border-input-0 ${
+              className={`px-8 py-2  rounded-full text-sm font-medium border-0 border-input-0 ${
                 selectedAmount === amount
                   ? 'bg-[#4ade80] text-black'
                   : 'bg-secondary text-white hover:bg-[#4b5563]'
@@ -108,7 +115,7 @@ export function TradingWidget() {
           ))}
         </div>
         <div className="flex bg-secondary items-center rounded-lg">
-          <div className=" focus:outline-none focus:ring-0 focus:border-none">
+          <div className=" focus:outline-none focus:ring-0 focus:border-none p-1">
             <Input
               type="number"
               value={customAmount}
@@ -127,54 +134,76 @@ export function TradingWidget() {
           {/* Token Selector */}
           <div className="">
             <Select value={selectedToken} onValueChange={setSelectedToken}>
-              <SelectTrigger
-                className="
+            <SelectTrigger
+  className="
     w-full bg-transparent text-white h-12
     ring-0 ring-offset-0 border-none outline-none shadow-none
     focus:outline-none focus:ring-0 focus:ring-offset-0 focus:shadow-none
     focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none
   "
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 relative">
-                    <Image
-                      src={currentToken.icon || '/placeholder.svg'}
-                      alt={currentToken.symbol}
-                      width={24}
-                      height={24}
-                      className="rounded-full"
-                    />
-                  </div>
-                  <span className="font-medium">{currentToken.name}</span>
-                </div>
-              </SelectTrigger>
-              <SelectContent className="bg-secondary border-gray-600">
-                {tokens.map((token) => (
-                  <SelectItem
-                    key={token.id}
-                    value={token.id}
-                    className="text-white "
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 relative">
-                        <Image
-                          src={token.icon || '/placeholder.svg'}
-                          alt={token.symbol}
-                          width={24}
-                          height={24}
-                          className="rounded-full"
-                        />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{token.name}</span>
-                        <span className="text-xs text-gray-400">
-                          {token.symbol}
-                        </span>
-                      </div>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
+>
+  <div className="flex items-center gap-2">
+    <div className="w-6 h-6 relative">
+      {(currentToken.id === 'High' || currentToken.id === 'Low') ? (
+        <div
+          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+            currentToken.id === 'High' ? 'bg-[#4ade80]' : 'bg-[#ef4444]'
+          }`}
+        >
+          {currentToken.id === 'High' ? 'H' : 'L'}
+        </div>
+      ) : (
+        <Image
+          src={currentToken.icon || '/placeholder.svg'}
+          alt={currentToken.symbol}
+          width={24}
+          height={24}
+          className="rounded-full"
+        />
+      )}
+    </div>
+    <span className="font-medium">{currentToken.name}</span>
+  </div>
+</SelectTrigger>
+
+           <SelectContent className="bg-secondary border-gray-600">
+  {tokens
+    .filter(token => 
+      token.id === 'usdc' || 
+      (selectedType === 'High' && token.id === 'High') || 
+      (selectedType === 'Low' && token.id === 'Low')
+    )
+    .map(token => (
+      <SelectItem key={token.id} value={token.id} className="text-white">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 relative">
+            {token.id === 'High' ? (
+              <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white bg-[#4ade80]">
+                H
+              </div>
+            ) : token.id === 'Low' ? (
+              <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white bg-[#ef4444]">
+                L
+              </div>
+            ) : (
+              <Image
+                src={token.icon || '/placeholder.svg'}
+                alt={token.symbol}
+                width={24}
+                height={24}
+                className="rounded-full"
+              />
+            )}
+          </div>
+          <div className="flex flex-col">
+            <span className="font-medium">{token.name}</span>
+            <span className="text-xs text-gray-400">{token.symbol}</span>
+          </div>
+        </div>
+      </SelectItem>
+    ))}
+</SelectContent>
+
             </Select>
           </div>
         </div>
