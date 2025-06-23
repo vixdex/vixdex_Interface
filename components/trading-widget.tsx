@@ -14,6 +14,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from '@/components/ui/select';
+import { ethers, toNumber } from 'ethers';
 
 interface Token {
   id: string;
@@ -21,6 +22,7 @@ interface Token {
   symbol: string;
   icon: string;
   balance: string;
+  address:string;
 }
 
 const tokens: Token[] = [
@@ -30,6 +32,7 @@ const tokens: Token[] = [
     symbol: 'USDC',
     icon: 'https://assets.coingecko.com/coins/images/6319/large/USD_Coin_icon.png',
     balance: '1250.50',
+    address: process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS+"",
   },
 
   {
@@ -38,14 +41,20 @@ const tokens: Token[] = [
     symbol: 'BTC',
     icon: 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png',
     balance: '0.125',
+    address: process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS+"",
   },
 ];
-
-export function TradingWidget() {
+interface ElementProps {
+  highTokenAdd: string;
+  lowTokenAdd: string;
+  poolAdd:string;
+}
+export function TradingWidget({ highTokenAdd, lowTokenAdd,poolAdd }: ElementProps) {
   const [selectedType, setSelectedType] = useState<'High' | 'Low'>('High');
   const [selectedAmount, setSelectedAmount] = useState<string>('1$');
   const [customAmount, setCustomAmount] = useState<string>('1');
   const [selectedToken, setSelectedToken] = useState<string>('shib');
+  const [isAmountInBase, setIsAmountInBase] = useState<boolean>(true);
   let {buy,sell} = useSwap();
   const amounts = ['1$', '10$', '20$'];
   const currentToken =
@@ -62,7 +71,53 @@ export function TradingWidget() {
     setCustomAmount(value);
     setSelectedAmount('');
     console.log('Custom amount changed:', value);
+    console.log('High Token Address:', highTokenAdd);
+    console.log('Low Token Address:', lowTokenAdd);
+    console.log("selected type:", selectedType);
+    console.log("selected token:", selectedToken);
   };
+
+  function buyToken(){
+    console.log('Buy function called');
+    console.log('Custom Amount:', ethers.parseUnits(customAmount, 18));
+    if (selectedType === 'High') {
+      if (selectedToken === process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS) {
+        
+
+      }else{
+          buy(ethers.parseUnits(customAmount, 18), highTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS+"", poolAdd);
+
+      }
+    } else {
+      if( selectedToken === process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS) {
+
+      }else{
+          buy(ethers.parseUnits(customAmount, 18), lowTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS+"", poolAdd);
+
+      }
+    }
+  }
+
+  function sellToken(){
+
+    console.log('Sell function called');
+    console.log('Custom Amount:', ethers.parseUnits(customAmount, 18));
+
+    if (selectedType === 'High') {
+      if( selectedToken === process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS) {
+
+      }else{
+        sell(ethers.parseUnits(customAmount, 18), highTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS+"", poolAdd);
+
+      }
+    } else {
+      if(selectedToken === process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS) {
+
+      }else{
+          sell(ethers.parseUnits(customAmount, 18), lowTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS+"",poolAdd);
+      }
+    }
+  }
 
   return (
     <Card className="w-full max-w-sm bg-black  border-gray-800 hidden md:block">
@@ -200,7 +255,7 @@ export function TradingWidget() {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
-            <Button className="w-full h-14 bg-[#4ade80] hover:bg-[#4ade80]/90 text-black font-semibold text-lg rounded-2xl">
+            <Button onClick={()=>{buyToken()}} className="w-full h-14 bg-[#4ade80] hover:bg-[#4ade80]/90 text-black font-semibold text-lg rounded-2xl">
               Buy
             </Button>
           </motion.div>
@@ -209,7 +264,7 @@ export function TradingWidget() {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
-            <Button className="w-full h-14 bg-[#ef4444] hover:bg-[#ef4444]/90 text-white font-semibold text-lg rounded-2xl">
+            <Button onClick={()=>{sellToken()}} className="w-full h-14 bg-[#ef4444] hover:bg-[#ef4444]/90 text-white font-semibold text-lg rounded-2xl">
               Sell
             </Button>
           </motion.div>

@@ -14,7 +14,7 @@ import logo from '../../public/vixdex_background_remove.png';
 import { useCreateDerive } from '@/hooks/create-derive';
 import {useWallets } from '@privy-io/react-auth';
 import { ethers } from 'ethers';
-import {sortTokenAddresses} from "@/utils/tokenOrder.js"
+import {sortTokenAddresses} from "../../utils/tokenOrder.js";
 
 export default function CreateDerivePage() {
   const [poolAddress, setPoolAddress] = useState('');
