@@ -44,6 +44,9 @@ export default function TokenPage({ params }: { params: { id: string } }) {
   const [chartData, setChartData] = useState(initialChartData);
   const [chartTimeFrame, setChartTimeFrame] = useState('1m');
   const [selectedPair, setSelectedPair] = useState(mockPairs[0].pair);
+  const [highTokenAddress,setHighTokenAddress] = useState<string>("")
+  const [lowTokenAddress,setLowTokenAddress] = useState<string>("");
+
   let { wallets } = useWallets();
   useEffect(() => {
     const fetchToken = async () => {
@@ -107,8 +110,11 @@ export default function TokenPage({ params }: { params: { id: string } }) {
         icon0: data.included[0].attributes.image_url,  
         icon1: data.included?.[1]?.attributes?.image_url,
       });
-
+      setHighTokenAddress(vixData.vixHighToken);
+      setLowTokenAddress(vixData._vixLowToken);
       setLoading(false);
+
+
     };
 
     fetchToken();
@@ -297,7 +303,7 @@ export default function TokenPage({ params }: { params: { id: string } }) {
               </CardContent>
             </Card>
 
-            <TradingWidget />
+            <TradingWidget highTokenAdd={highTokenAddress} lowTokenAdd={lowTokenAddress} poolAdd={params.id}/>
           </motion.div>
           <motion.div
             className="grid gap-6 grid-cols-1 lg:grid-cols-3"
