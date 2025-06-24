@@ -1,7 +1,6 @@
 // lib/fetchEvents.ts
 import { ethers, EventLog } from "ethers";
 
-const CONTRACT_ADDRESS = "0xeADc96098D7a1D5Ba3d6A2F93fB248ED2D1b08C8";
 const RPC_URL = "https://rpc.buildbear.io/dual-magma-e6ae5bf5";
 
 // Minimal ABI with only the event
@@ -21,8 +20,9 @@ export interface PairInitiatedEvent {
 
 export const fetchPairInitiatedEvents = async (): Promise<PairInitiatedEvent[]> => {
   try {
-    const provider = new ethers.JsonRpcProvider(RPC_URL);
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
+    const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
+    const contract = new ethers.Contract(process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS!
+, ABI, provider);
 
     const latestBlock = await provider.getBlockNumber();
     const fromBlock = Math.max(0, latestBlock - 5000); // Ensure we don't go below block 0
@@ -62,8 +62,9 @@ export const fetchPairInitiatedEventsWithRange = async (
   toBlock?: number
 ): Promise<PairInitiatedEvent[]> => {
   try {
-    const provider = new ethers.JsonRpcProvider(RPC_URL);
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
+    const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
+    const contract = new ethers.Contract(          process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS!,
+ABI, provider);
 
     const latestBlock = toBlock || await provider.getBlockNumber();
 

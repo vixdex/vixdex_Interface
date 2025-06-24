@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useWallets } from '@privy-io/react-auth';
 import { ethers } from 'ethers';
 import { fetchPairInitiatedEvents } from '@/lib/fetchEvents';
+import { formatUSDNumber } from '@/utils/usdcConverter';
 
 export type TokenInfo = {
   id: string;
@@ -106,11 +107,28 @@ export function TradingPairs({ onFetched }: TradingPairsProps) {
 
             const circulation0 = await contract.vixTokensPrice(vixData._circulation0);
             const circulation1 = await contract.vixTokensPrice(vixData._circulation1);
+// Convert all to BigInt for accurate math
+
+
+const circulation0Parsed = parseFloat(ethers.formatEther(vixData._circulation0));
+const circulation1Parsed = parseFloat(ethers.formatEther(vixData._circulation1));
+
+const holding0Parsed = parseFloat(ethers.formatEther(vixData._contractHoldings0));
+const holding1Parsed = parseFloat(ethers.formatEther(vixData._contractHoldings1));
+
+// Multiply circulation * holdings
+const totalValue0 = circulation0Parsed * holding0Parsed;
+const totalValue1 = circulation1Parsed * holding1Parsed;
+
+const totalValue = totalValue0 + totalValue1;
+
 
 
           
             const priceHigh = parseFloat(ethers.formatEther(token0Price)).toFixed(6);
             const priceLow = parseFloat(ethers.formatEther(token1Price)).toFixed(6);
+
+        
 
             
 
@@ -131,7 +149,7 @@ export function TradingPairs({ onFetched }: TradingPairsProps) {
                 if (res.ok) {
                   const data = await res.json();
                   tokenData = {
-                    name: data.data?.attributes?.name || tokenData.name,
+                    name: data.data?.attributes?.pool_name || tokenData.name,
                     symbol: data.data?.attributes?.pool_name || tokenData.symbol,
                     icon0: data.included?.[0]?.attributes?.image_url || tokenData.icon0,
                     icon1: data.included?.[1]?.attributes?.image_url || tokenData.icon1,
@@ -154,10 +172,11 @@ export function TradingPairs({ onFetched }: TradingPairsProps) {
               priceHigh: `$${priceHigh}`,
               priceLow: `$${priceLow}`,
               deriveToken,
-              marketCap: '200k$', // placeholder - you can calculate this
+              marketCap: `$${totalValue}`, // placeholder - you can calculate this
               currentIV: '40.1%', // placeholder - you can calculate this from event.initiatedIV
               change24h: Math.random() > 0.5 ? 2.4 : -1.2, // placeholder
-              perc: tokenData.perc // placeholder
+              perc: tokenData.perc ,// placeholder
+
             });
 
             console.log("dummy :" , result)

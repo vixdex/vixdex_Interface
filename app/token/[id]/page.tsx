@@ -90,6 +90,8 @@ export default function TokenPage({ params }: { params: { id: string } }) {
         const data = await response.json();
         console.log(data);
       // Simulated token data; replace with contract call
+    
+
       let token0Price = await vixContract.vixTokensPrice(vixData._contractHoldings0);
       let token1Price = await vixContract.vixTokensPrice(vixData._contractHoldings1);
       console.log('Token0 Price:', token0Price);
@@ -109,8 +111,10 @@ export default function TokenPage({ params }: { params: { id: string } }) {
         volume: '12M$',
         icon0: data.included[0].attributes.image_url,  
         icon1: data.included?.[1]?.attributes?.image_url,
+
       });
       setHighTokenAddress(vixData.vixHighToken);
+      console.log("h add",setHighTokenAddress)
       setLowTokenAddress(vixData._vixLowToken);
       setLoading(false);
 
@@ -316,7 +320,7 @@ export default function TokenPage({ params }: { params: { id: string } }) {
                 <h3 className="text-lg font-medium mb-4">Links</h3>
                 <div className="space-y-3">
                   <Link
-                    href="#"
+  href={`https://explorer.buildbear.io/dual-magma-e6ae5bf5/address/${highTokenAddress}`}
                     className="flex items-center gap-2 text-sm hover:text-primary"
                   >
                     <div className="w-6 h-6 relative">
@@ -332,7 +336,7 @@ export default function TokenPage({ params }: { params: { id: string } }) {
                   </Link>
 
                   <Link
-                    href="#"
+  href={`https://explorer.buildbear.io/dual-magma-e6ae5bf5/address/${lowTokenAddress}`}
                     className="flex items-center gap-2 text-sm hover:text-primary"
                   >
                     <div className="w-6 h-6 relative">
