@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -25,7 +25,8 @@ import { MobileTradingButtons } from '@/components/mobile-trading-buttons';
 import { ethers } from 'ethers';
 import { useWallets } from '@privy-io/react-auth';
 import axios from 'axios';
-import React from 'react';
+
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const initialChartData = Array.from({ length: 60 }, (_, i) => ({
   time: Math.floor(Date.now() / 1000) - (60 - i) * 60,
@@ -38,19 +39,21 @@ const mockPairs = [
   { pair: 'XRP-VOL/USDT', price: 0.0123 },
 ];
 
-export default function TokenPage({ params }: { params: { id: string } }) {
-  // EXACT SAME as original paste.txt + chart additions
+export default function TokenPage({ params }: { params: Promise<{ id: string }> }) {
+  // Unwrap the params Promise using React.use()
+  const { id } = use(params);
+  
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<any>(null);
   const [chartData, setChartData] = useState(initialChartData);
   const [chartTimeFrame, setChartTimeFrame] = useState('1m');
   const [selectedPair, setSelectedPair] = useState(mockPairs[0].pair);
-  const [selectedPriceType, setSelectedPriceType] = useState<'price0' | 'price1'>('price0'); // NEW: Chart feature
+  const [selectedPriceType, setSelectedPriceType] = useState<'price0' | 'price1'>('price0');
   const [highTokenAddress, setHighTokenAddress] = useState<string>("");
   const [lowTokenAddress, setLowTokenAddress] = useState<string>("");
 
   let { wallets } = useWallets();
-
+  
   useEffect(() => {
     const fetchToken = async () => {
       if (wallets.length === 0) {
@@ -82,13 +85,11 @@ export default function TokenPage({ params }: { params: { id: string } }) {
           signer
         );
         
-        // EXACT SAME SWAP LOGIC - using params.id directly as pool address
-        const vixData = await vixContract.getVixData(params.id);
+        const vixData = await vixContract.getVixData(id);
         console.log('VIX Data:', vixData);
         console.log('VIX High Token:', vixData.vixHighToken);
         
-        // EXACT SAME SWAP LOGIC - using hardcoded network from env
-        const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${params.id}?include=quote_token`;
+        const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${id}?include=base_token%2Cquote_token`;
         console.log('Fetching data from:', geckoTerminalURL);
         const response = await fetch(geckoTerminalURL);
 
@@ -98,8 +99,7 @@ export default function TokenPage({ params }: { params: { id: string } }) {
 
         const data = await response.json();
         console.log(data);
-        
-        // EXACT SAME SWAP LOGIC - token price calculation
+
         let token0Price = await vixContract.vixTokensPrice(vixData._contractHoldings0);
         let token1Price = await vixContract.vixTokensPrice(vixData._contractHoldings1);
         console.log('Token0 Price:', token0Price);
@@ -109,23 +109,23 @@ export default function TokenPage({ params }: { params: { id: string } }) {
         console.log('High Token Price:', highTokenPrice);
         console.log('Low Token Price:', lowTokenPrice);
         
-        // ENHANCED: Original token setting + chart features
         setToken({
-          id: params.id, // EXACT SAME as original
+          id: id,
           name: data.data.attributes.name,
           symbol: data.data.attributes.pool_name,
-          price: selectedPriceType === 'price0' ? highTokenPrice + "$" : lowTokenPrice + "$", // ENHANCED for price switching
-          highPrice: highTokenPrice + "$", // NEW: For chart functionality
-          lowPrice: lowTokenPrice + "$",   // NEW: For chart functionality
+          price: selectedPriceType === 'price0' ? highTokenPrice + "$" : lowTokenPrice + "$",
+          highPrice: highTokenPrice + "$",
+          lowPrice: lowTokenPrice + "$",
           change24h: 2.4,
           marketCap: '200k$',
           averageIV: '40.1%',
           volume: '12M$',
-          icon: data.included[0].attributes.image_url,
+          icon0: data.included[0].attributes.image_url,  
+          icon1: data.included?.[1]?.attributes?.image_url,
         });
         
-        // EXACT SAME SWAP LOGIC
         setHighTokenAddress(vixData.vixHighToken);
+        console.log("h add", vixData.vixHighToken);
         setLowTokenAddress(vixData._vixLowToken);
         setLoading(false);
       } catch (error) {
@@ -135,9 +135,9 @@ export default function TokenPage({ params }: { params: { id: string } }) {
     };
 
     fetchToken();
-  }, [wallets, params.id, selectedPriceType]); // Added selectedPriceType for price switching
+  }, [wallets, id, selectedPriceType]);
 
-  // NEW: Update displayed price when price type changes
+  // Update displayed price when price type changes
   useEffect(() => {
     if (token) {
       setToken((prev: any) => ({
@@ -178,17 +178,31 @@ export default function TokenPage({ params }: { params: { id: string } }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <div className="w-8 h-8 relative">
+            <div className="relative w-10 h-6 mr-2">
               <Image
-                src={token.icon || '/placeholder.svg'}
+                src={token.icon0}
                 alt={token.symbol}
-                width={32}
-                height={32}
-                className="rounded-full"
+                width={24}
+                height={24}
+                className="rounded-full absolute z-10 border-2 border-background"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = '/placeholder.svg';
+                }}
+              />
+              <Image
+                src={token.icon1}
+                alt={token.symbol}
+                width={24}
+                height={24}
+                className="rounded-full absolute left-3 z-0 border-2 border-background"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = '/placeholder.svg';
+                }}
               />
             </div>
             <h1 className="text-xl font-bold">{token.name}</h1>
-            {/* NEW: Price type badge */}
             <div className="text-xs bg-secondary text-secondary-foreground px-1.5 py-0.5 rounded">
               {selectedPriceType === 'price0' ? 'HIGH' : 'LOW'}
             </div>
@@ -221,7 +235,6 @@ export default function TokenPage({ params }: { params: { id: string } }) {
                     </div>
                   </div>
 
-                  {/* ENHANCED: High/Low buttons from paste-2.txt */}
                   <div className="flex gap-2">
                     <Button
                       size="sm"
@@ -242,10 +255,9 @@ export default function TokenPage({ params }: { params: { id: string } }) {
                   </div>
                 </div>
 
-                {/* NEW: Chart with empty networkId and original pool address */}
                 <CandlestickChart
-                  networkId=""              // Empty string as requested
-                  poolId={params.id}        // Original pool address from URL
+                  networkId=""              
+                  poolId={id}        
                   priceType={selectedPriceType}
                   height={250}
                 />
@@ -327,12 +339,7 @@ export default function TokenPage({ params }: { params: { id: string } }) {
               </CardContent>
             </Card>
 
-            {/* FIX: Cast to any to resolve TypeScript error temporarily */}
-            {React.createElement(TradingWidget as any, { 
-              highTokenAdd: highTokenAddress, 
-              lowTokenAdd: lowTokenAddress, 
-              poolAdd: params.id 
-            })}
+            <TradingWidget highTokenAdd={highTokenAddress} lowTokenAdd={lowTokenAddress} poolAdd={id} />
           </motion.div>
           
           <motion.div
@@ -346,34 +353,32 @@ export default function TokenPage({ params }: { params: { id: string } }) {
                 <h3 className="text-lg font-medium mb-4">Links</h3>
                 <div className="space-y-3">
                   <Link
-                    href="#"
+                    href={`https://explorer.buildbear.io/dual-magma-e6ae5bf5/address/${highTokenAddress}`}
                     className="flex items-center gap-2 text-sm hover:text-primary"
                   >
                     <div className="w-6 h-6 relative">
-                      <Image
-                        src={token.icon || '/placeholder.svg'}
-                        alt={token.symbol}
-                        width={24}
-                        height={24}
-                        className="rounded-full"
-                      />
+                      <Avatar className="h-6 w-6 bg-primary ">
+                        <AvatarImage src="/avatar.png" alt="User"  />
+                        <AvatarFallback className="bg-primary text-white">
+                          H
+                        </AvatarFallback>
+                      </Avatar>
                     </div>
                     <span>HIGH TOKEN</span>
                     <ExternalLink className="h-3 w-3 ml-auto" />
                   </Link>
 
                   <Link
-                    href="#"
+                    href={`https://explorer.buildbear.io/dual-magma-e6ae5bf5/address/${lowTokenAddress}`}
                     className="flex items-center gap-2 text-sm hover:text-primary"
                   >
                     <div className="w-6 h-6 relative">
-                      <Image
-                        src={token.icon || '/placeholder.svg'}
-                        alt={token.symbol}
-                        width={24}
-                        height={24}
-                        className="rounded-full"
-                      />
+                      <Avatar className="h-6 w-6 bg-[#ef4444]">
+                        <AvatarImage src="/avatar.png" alt="User" />
+                        <AvatarFallback className="bg-[#ef4444] text-white">
+                          L
+                        </AvatarFallback>
+                      </Avatar>
                     </div>
                     <span>LOW TOKEN</span>
                     <ExternalLink className="h-3 w-3 ml-auto" />

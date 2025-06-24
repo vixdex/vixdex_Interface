@@ -33,8 +33,8 @@ export function useSwap(){
         let privyProvider = await wallet.getEthereumProvider()
         let ethersProvider = new ethers.BrowserProvider(privyProvider);
         let signer = await ethersProvider.getSigner();
-        let swapContract = new ethers.Contract(process.env.NEXT_PUBLIC_VIX_ROUTER_ADDRESS,abi,signer)
-        let usdcContract = new ethers.Contract(process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS,usdcAbi,signer)
+        let swapContract = new ethers.Contract(process.env.NEXT_PUBLIC_VIX_ROUTER_ADDRESS!,abi,signer)
+        let usdcContract = new ethers.Contract(process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS!,usdcAbi,signer)
         if(token0 === baseAddress){
             // Approve the swap contract to spend USDC
             let approvePromise = await usdcContract.approve(process.env.NEXT_PUBLIC_VIX_ROUTER_ADDRESS, ethers.MaxUint256);
@@ -72,7 +72,7 @@ export function useSwap(){
         let privyProvider = await wallet.getEthereumProvider()
         let ethersProvider = new ethers.BrowserProvider(privyProvider);
         let signer = await ethersProvider.getSigner();
-        let swapContract = new ethers.Contract(process.env.NEXT_PUBLIC_VIX_ROUTER_ADDRESS,abi,signer)
+        let swapContract = new ethers.Contract(process.env.NEXT_PUBLIC_VIX_ROUTER_ADDRESS!,abi,signer)
         let vptContract = new ethers.Contract(VPTaddress,usdcAbi,signer)
 
         if(token0 === baseAddress){

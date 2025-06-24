@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import {useSwap} from "@/hooks/swap";
+import { useSwap } from "@/hooks/swap";
 import {
   Select,
   SelectContent,
@@ -22,47 +22,242 @@ interface Token {
   symbol: string;
   icon: string;
   balance: string;
-  address:string;
+  address: string;
+  price: number;
 }
 
-const tokens: Token[] = [
-  {
-    id: 'usdc',
-    name: 'USD Coin',
-    symbol: 'USDC',
-    icon: 'https://assets.coingecko.com/coins/images/6319/large/USD_Coin_icon.png',
-    balance: '1250.50',
-    address: process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS+"",
-  },
-
-  {
-    id: 'btc',
-    name: 'Bitcoin',
-    symbol: 'BTC',
-    icon: 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png',
-    balance: '0.125',
-    address: process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS+"",
-  },
-];
 interface ElementProps {
   highTokenAdd: string;
   lowTokenAdd: string;
-  poolAdd:string;
+  poolAdd: string;
 }
-export function TradingWidget({ highTokenAdd, lowTokenAdd,poolAdd }: ElementProps) {
+
+interface VixData {
+  vixHighToken: string;
+  _vixLowToken: string;
+  _circulation0: bigint;
+  _circulation1: bigint;
+  _contractHoldings0: bigint;
+  _contractHoldings1: bigint;
+  _reserve0: bigint;
+  _reserve1: bigint;
+  _poolAddress: string;
+}
+
+const VIX_ABI = [
+  'function getVixData(address poolAdd) view returns (address vixHighToken, address _vixLowToken, uint256 _circulation0, uint256 _circulation1, uint256 _contractHoldings0, uint256 _contractHoldings1, uint256 _reserve0, uint256 _reserve1, address _poolAddress)',
+  'function vixTokensPrice(uint contractHoldings) view returns(uint)'
+];
+
+const ERC20_ABI = [
+  'function balanceOf(address owner) view returns (uint256)',
+  'function decimals() view returns (uint8)'
+];
+
+// Chain configurations
+const CHAIN_CONFIG = {
+  1: { name: 'Ethereum', color: '#627EEA' },
+  137: { name: 'Polygon', color: '#8247E5' },
+  56: { name: 'BSC', color: '#F3BA2F' },
+  8453: { name: 'Base', color: '#0052FF' },
+  42161: { name: 'Arbitrum', color: '#28A0F0' },
+  10: { name: 'Optimism', color: '#FF0420' },
+   26735: {name: "BuildBear", color : "fff000"}
+  // Add more chains as needed
+};
+
+export function TradingWidget({ highTokenAdd, lowTokenAdd, poolAdd }: ElementProps) {
   const [selectedType, setSelectedType] = useState<'High' | 'Low'>('High');
   const [selectedAmount, setSelectedAmount] = useState<string>('1$');
   const [customAmount, setCustomAmount] = useState<string>('1');
-  const [selectedToken, setSelectedToken] = useState<string>('shib');
+  const [selectedToken, setSelectedToken] = useState<string>('usdc');
   const [isAmountInBase, setIsAmountInBase] = useState<boolean>(true);
-  let {buy,sell} = useSwap();
+  const [highTokenPrice, setHighTokenPrice] = useState<number>(1);
+  const [lowTokenPrice, setLowTokenPrice] = useState<number>(1);
+  const [highTokenBalance, setHighTokenBalance] = useState<string>('0');
+  const [lowTokenBalance, setLowTokenBalance] = useState<string>('0');
+  const [usdcBalance, setUsdcBalance] = useState<string>('0');
+  const [currentChain, setCurrentChain] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  let { buy, sell } = useSwap();
   const amounts = ['1$', '10$', '20$'];
-  const currentToken =
-    tokens.find((token) => token.id === selectedToken) || tokens[0];
+
+  // Initialize provider and contract
+  const getProvider = () => {
+    // Always use JsonRpcProvider for consistency
+    return new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://rpc.buildbear.io/dual-magma-e6ae5bf5");
+  };
+
+  // Fetch VIX data and token prices
+  const fetchVixData = async () => {
+    try {
+      setIsLoading(true);
+      
+      if (!process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS) {
+        throw new Error("VIX contract address not configured");
+      }
+
+      const provider = getProvider();
+      const vixContract = new ethers.Contract(
+        process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS,
+        VIX_ABI,
+        provider
+      );
+
+      const vixData = await vixContract.getVixData(poolAdd);
+      
+      // Get High token price
+      const highPrice = await vixContract.vixTokensPrice(vixData._contractHoldings0);
+      setHighTokenPrice(Number(ethers.formatEther(highPrice)));
+
+      // Get Low token price  
+      const lowPrice = await vixContract.vixTokensPrice(vixData._contractHoldings1);
+      setLowTokenPrice(Number(ethers.formatEther(lowPrice)));
+
+    } catch (error) {
+      console.error('Error fetching VIX data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch token balances
+  const fetchTokenBalances = async () => {
+    try {
+      // Only fetch balances if we have a connected wallet
+      if (typeof window === 'undefined' || !window.ethereum) {
+        console.log('No wallet connected, skipping balance fetch');
+        return;
+      }
+
+      const browserProvider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await browserProvider.getSigner();
+      const userAddress = await signer.getAddress();
+
+      const provider = getProvider(); // Use RPC provider for contract reads
+
+      // Fetch High token balance
+      const highTokenContract = new ethers.Contract(highTokenAdd, ERC20_ABI, provider);
+      const highBalance = await highTokenContract.balanceOf(userAddress);
+      const highDecimals = await highTokenContract.decimals();
+      setHighTokenBalance(ethers.formatUnits(highBalance, highDecimals));
+
+      // Fetch Low token balance
+      const lowTokenContract = new ethers.Contract(lowTokenAdd, ERC20_ABI, provider);
+      const lowBalance = await lowTokenContract.balanceOf(userAddress);
+      const lowDecimals = await lowTokenContract.decimals();
+      setLowTokenBalance(ethers.formatUnits(lowBalance, lowDecimals));
+
+      // Fetch USDC balance
+      if (process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS) {
+        const usdcContract = new ethers.Contract(
+          process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS,
+          ERC20_ABI,
+          provider
+        );
+        const usdcBal = await usdcContract.balanceOf(userAddress);
+        const usdcDecimals = await usdcContract.decimals();
+        setUsdcBalance(ethers.formatUnits(usdcBal, usdcDecimals));
+      }
+
+    } catch (error) {
+      console.error('Error fetching token balances:', error);
+    }
+  };
+
+  // Get current chain
+  const getCurrentChain = async () => {
+    try {
+      if (typeof window === 'undefined' || !window.ethereum) {
+        console.log('No wallet connected, using default chain');
+        return;
+      }
+
+      const browserProvider = new ethers.BrowserProvider(window.ethereum);
+      const network = await browserProvider.getNetwork();
+      setCurrentChain(Number(network.chainId));
+    } catch (error) {
+      console.error('Error getting current chain:', error);
+    }
+  };
+
+  // Handle account/chain changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.ethereum) {
+      // Listen for account changes
+      window.ethereum.on('accountsChanged', () => {
+        fetchTokenBalances();
+      });
+
+      // Listen for chain changes
+      window.ethereum.on('chainChanged', () => {
+        getCurrentChain();
+        fetchVixData();
+        fetchTokenBalances();
+      });
+    }
+
+    return () => {
+      if (typeof window !== 'undefined' && window.ethereum) {
+        window.ethereum.removeAllListeners('accountsChanged');
+        window.ethereum.removeAllListeners('chainChanged');
+      }
+    };
+  }, []);
+
+  // Initial data fetch
+  useEffect(() => {
+    // Always fetch VIX data (doesn't require wallet)
+    fetchVixData();
+    
+    // Only fetch chain and balances if wallet might be available
+    if (typeof window !== 'undefined') {
+      getCurrentChain();
+      fetchTokenBalances();
+    }
+  }, [poolAdd, highTokenAdd, lowTokenAdd]);
+
+  const tokens: Token[] = [
+    {
+      id: 'usdc',
+      name: 'USD Coin',
+      symbol: 'USDC',
+      icon: 'https://assets.coingecko.com/coins/images/6319/large/USD_Coin_icon.png',
+      balance: parseFloat(usdcBalance).toFixed(4),
+      address: process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "",
+      price: 1
+    },
+    {
+      id: 'High',
+      name: 'High Token',
+      symbol: 'H',
+      icon: '',
+      balance: parseFloat(highTokenBalance).toFixed(4),
+      address: highTokenAdd,
+      price: highTokenPrice
+    },
+    {
+      id: 'Low',
+      name: 'Low Token',
+      symbol: 'L',
+      icon: '',
+      balance: parseFloat(lowTokenBalance).toFixed(4),
+      address: lowTokenAdd,
+      price: lowTokenPrice
+    },
+  ];
+
+  const currentToken = tokens.find((token) => token.id === selectedToken) || tokens[0];
+
+  // Calculate USD value based on selected token and amount
+  const calculateUSDValue = () => {
+    if (!customAmount || isNaN(Number(customAmount))) return 0;
+    return Number(customAmount) * currentToken.price;
+  };
 
   const handleAmountSelect = (amount: string) => {
     setSelectedAmount(amount);
-    // Extract number from amount string (e.g., "10$" -> "10")
     const numericAmount = amount.replace('$', '');
     setCustomAmount(numericAmount);
   };
@@ -73,57 +268,69 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd,poolAdd }: ElementProp
     console.log('Custom amount changed:', value);
     console.log('High Token Address:', highTokenAdd);
     console.log('Low Token Address:', lowTokenAdd);
-    console.log("selected type:", selectedType);
-    console.log("selected token:", selectedToken);
+    console.log("Selected type:", selectedType);
+    console.log("Selected token:", selectedToken);
+    console.log("USD Value:", calculateUSDValue());
   };
 
-  function buyToken(){
+  function buyToken() {
     console.log('Buy function called');
     console.log('Custom Amount:', ethers.parseUnits(customAmount, 18));
+    
     if (selectedType === 'High') {
-      if (selectedToken === process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS) {
-        
-
-      }else{
-          buy(ethers.parseUnits(customAmount, 18), highTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS+"", poolAdd);
-
+      if (selectedToken === 'usdc') {
+        // Handle USDC to High token swap
+        buy(ethers.parseUnits(customAmount, 18), process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", highTokenAdd, poolAdd);
+      } else {
+        // Handle High token to USDC swap
+        buy(ethers.parseUnits(customAmount, 18), highTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", poolAdd);
       }
     } else {
-      if( selectedToken === process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS) {
-
-      }else{
-          buy(ethers.parseUnits(customAmount, 18), lowTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS+"", poolAdd);
-
+      if (selectedToken === 'usdc') {
+        // Handle USDC to Low token swap
+        buy(ethers.parseUnits(customAmount, 18), process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", lowTokenAdd, poolAdd);
+      } else {
+        // Handle Low token to USDC swap
+        buy(ethers.parseUnits(customAmount, 18), lowTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", poolAdd);
       }
     }
   }
 
-  function sellToken(){
-
+  function sellToken() {
     console.log('Sell function called');
     console.log('Custom Amount:', ethers.parseUnits(customAmount, 18));
 
     if (selectedType === 'High') {
-      if( selectedToken === process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS) {
-
-      }else{
-        sell(ethers.parseUnits(customAmount, 18), highTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS+"", poolAdd);
-
+      if (selectedToken === 'usdc') {
+        // Selling USDC for High tokens (essentially buying High)
+        buy(ethers.parseUnits(customAmount, 18), process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", highTokenAdd, poolAdd);
+      } else {
+        // Selling High tokens for USDC
+        sell(ethers.parseUnits(customAmount, 18), highTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", poolAdd);
       }
     } else {
-      if(selectedToken === process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS) {
-
-      }else{
-          sell(ethers.parseUnits(customAmount, 18), lowTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS+"",poolAdd);
+      if (selectedToken === 'usdc') {
+        // Selling USDC for Low tokens (essentially buying Low)
+        buy(ethers.parseUnits(customAmount, 18), process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", lowTokenAdd, poolAdd);
+      } else {
+        // Selling Low tokens for USDC
+        sell(ethers.parseUnits(customAmount, 18), lowTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", poolAdd);
       }
     }
   }
 
   return (
-    <Card className="w-full max-w-sm bg-black  border-gray-800 hidden md:block">
+    <Card className="w-full max-w-sm bg-black border-gray-800 hidden md:block">
       <CardContent className="p-6 space-y-4">
+        {/* Loading indicator */}
+        {isLoading && (
+          <div className="text-center text-gray-400 text-sm">
+            Loading prices...
+          </div>
+        )}
+
         {/* High/Low Toggle */}
-        <div className="flex ">
+        <div className="flex space-x-4">
           <Button
             onClick={() => setSelectedType('High')}
             className={`flex-1 h-12 rounded-2xl font-medium text-lg ${
@@ -147,12 +354,12 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd,poolAdd }: ElementProp
         </div>
 
         {/* Amount Selection */}
-        <div className="flex gap-x-6 ">
+        <div className="flex justify-between">
           {amounts.map((amount) => (
             <Button
               key={amount}
               onClick={() => handleAmountSelect(amount)}
-              className={`px-4  rounded-full text-sm font-medium border-0 border-input-0 ${
+              className={`px-8 py-2 rounded-full text-sm font-medium border-0 border-input-0 ${
                 selectedAmount === amount
                   ? 'bg-[#4ade80] text-black'
                   : 'bg-secondary text-white hover:bg-[#4b5563]'
@@ -162,8 +369,9 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd,poolAdd }: ElementProp
             </Button>
           ))}
         </div>
+
         <div className="flex bg-secondary items-center rounded-lg">
-          <div className=" focus:outline-none focus:ring-0 focus:border-none">
+          <div className="focus:outline-none focus:ring-0 focus:border-none p-1">
             <Input
               type="number"
               value={customAmount}
@@ -173,9 +381,16 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd,poolAdd }: ElementProp
             />
 
             <div className="text-gray-400 text-xs text-center">
-              $
-              {(Number.parseFloat(customAmount) * 2340).toLocaleString() ||
-                '$0'}
+              ${calculateUSDValue().toLocaleString(undefined, { 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 6 
+              })}
+            </div>
+            <div className="text-gray-500 text-xs text-center">
+              {currentToken.symbol} Price: ${currentToken.price.toLocaleString(undefined, { 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 6 
+              })}
             </div>
           </div>
 
@@ -184,51 +399,72 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd,poolAdd }: ElementProp
             <Select value={selectedToken} onValueChange={setSelectedToken}>
               <SelectTrigger
                 className="
-    w-full bg-transparent text-white h-12
-    ring-0 ring-offset-0 border-none outline-none shadow-none
-    focus:outline-none focus:ring-0 focus:ring-offset-0 focus:shadow-none
-    focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none
-  "
+                  w-full bg-transparent text-white h-12
+                  ring-0 ring-offset-0 border-none outline-none shadow-none
+                  focus:outline-none focus:ring-0 focus:ring-offset-0 focus:shadow-none
+                  focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none
+                "
               >
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 relative">
-                    <Image
-                      src={currentToken.icon || '/placeholder.svg'}
-                      alt={currentToken.symbol}
-                      width={24}
-                      height={24}
-                      className="rounded-full"
-                    />
+                    {(currentToken.id === 'High' || currentToken.id === 'Low') ? (
+                      <div
+                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                          currentToken.id === 'High' ? 'bg-[#4ade80]' : 'bg-[#ef4444]'
+                        }`}
+                      >
+                        {currentToken.id === 'High' ? 'H' : 'L'}
+                      </div>
+                    ) : (
+                      <Image
+                        src={currentToken.icon || '/placeholder.svg'}
+                        alt={currentToken.symbol}
+                        width={24}
+                        height={24}
+                        className="rounded-full"
+                      />
+                    )}
                   </div>
                   <span className="font-medium">{currentToken.name}</span>
                 </div>
               </SelectTrigger>
+
               <SelectContent className="bg-secondary border-gray-600">
-                {tokens.map((token) => (
-                  <SelectItem
-                    key={token.id}
-                    value={token.id}
-                    className="text-white "
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 relative">
-                        <Image
-                          src={token.icon || '/placeholder.svg'}
-                          alt={token.symbol}
-                          width={24}
-                          height={24}
-                          className="rounded-full"
-                        />
+                {tokens
+                  .filter(token => 
+                    token.id === 'usdc' || 
+                    (selectedType === 'High' && token.id === 'High') || 
+                    (selectedType === 'Low' && token.id === 'Low')
+                  )
+                  .map(token => (
+                    <SelectItem key={token.id} value={token.id} className="text-white">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 relative">
+                          {token.id === 'High' ? (
+                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white bg-[#4ade80]">
+                              H
+                            </div>
+                          ) : token.id === 'Low' ? (
+                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white bg-[#ef4444]">
+                              L
+                            </div>
+                          ) : (
+                            <Image
+                              src={token.icon || '/placeholder.svg'}
+                              alt={token.symbol}
+                              width={24}
+                              height={24}
+                              className="rounded-full"
+                            />
+                          )}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{token.name}</span>
+                          <span className="text-xs text-gray-400">{token.symbol}</span>
+                        </div>
                       </div>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{token.name}</span>
-                        <span className="text-xs text-gray-400">
-                          {token.symbol}
-                        </span>
-                      </div>
-                    </div>
-                  </SelectItem>
-                ))}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
@@ -237,16 +473,38 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd,poolAdd }: ElementProp
         {/* Balance and Fees */}
         <div className="space-y-3 text-gray-400 text-sm">
           <div>
-            {currentToken.symbol} Balance: {currentToken.balance}{' '}
-            {currentToken.symbol}
+            {currentToken.symbol} Balance: {currentToken.balance} {currentToken.symbol}
           </div>
-          <div>Swap fee (0.3%): 0.0000001</div>
-          <div>Gas Fee : 0.00000001</div>
+          <div>Swap fee (0.3%): {(calculateUSDValue() * 0.003).toFixed(8)}</div>
+          <div>Gas Fee: 0.00000001</div>
           <div className="flex items-center gap-2">
-            <span>network : unichain</span>
-            <div className="w-4 h-4 bg-pink-500 rounded-full"></div>
+            <span>
+              Network: {currentChain && CHAIN_CONFIG[currentChain] 
+                ? CHAIN_CONFIG[currentChain].name 
+                : `Chain ${currentChain || 'Unknown'}`}
+            </span>
+            <div 
+              className="w-4 h-4 rounded-full"
+              style={{
+                backgroundColor: currentChain && CHAIN_CONFIG[currentChain] 
+                  ? CHAIN_CONFIG[currentChain].color 
+                  : '#gray'
+              }}
+            ></div>
           </div>
         </div>
+
+        {/* Refresh Button */}
+        <Button
+          onClick={() => {
+            fetchVixData();
+            fetchTokenBalances();
+          }}
+          className="w-full bg-gray-700 hover:bg-gray-600 text-white text-sm py-2"
+          disabled={isLoading}
+        >
+          {isLoading ? 'Refreshing...' : 'Refresh Data'}
+        </Button>
 
         {/* Buy/Sell Buttons */}
         <div className="flex gap-3 pt-4">
@@ -255,7 +513,11 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd,poolAdd }: ElementProp
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
-            <Button onClick={()=>{buyToken()}} className="w-full h-14 bg-[#4ade80] hover:bg-[#4ade80]/90 text-black font-semibold text-lg rounded-2xl">
+            <Button 
+              onClick={() => { buyToken() }} 
+              className="w-full h-14 bg-[#4ade80] hover:bg-[#4ade80]/90 text-black font-semibold text-lg rounded-2xl"
+              disabled={isLoading}
+            >
               Buy
             </Button>
           </motion.div>
@@ -264,7 +526,11 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd,poolAdd }: ElementProp
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
-            <Button onClick={()=>{sellToken()}} className="w-full h-14 bg-[#ef4444] hover:bg-[#ef4444]/90 text-white font-semibold text-lg rounded-2xl">
+            <Button 
+              onClick={() => { sellToken() }} 
+              className="w-full h-14 bg-[#ef4444] hover:bg-[#ef4444]/90 text-white font-semibold text-lg rounded-2xl"
+              disabled={isLoading}
+            >
               Sell
             </Button>
           </motion.div>
