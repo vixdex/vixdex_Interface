@@ -280,7 +280,8 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd, poolAdd }: ElementPro
     if (selectedType === 'High') {
       if (selectedToken === 'usdc') {
         // Handle USDC to High token swap
-        buy(ethers.parseUnits(customAmount, 18), process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", highTokenAdd, poolAdd);
+        console.log("usdc selected: ",customAmount)
+        //buy(ethers.parseUnits(customAmount, 18), process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", highTokenAdd, poolAdd);
       } else {
         // Handle High token to USDC swap
         buy(ethers.parseUnits(customAmount, 18), highTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", poolAdd);
