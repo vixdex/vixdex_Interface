@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -23,7 +23,7 @@ import Chart from '@/components/chart';
 import CandlestickChart from '@/components/chart';
 import { MobileTradingButtons } from '@/components/mobile-trading-buttons';
 import { ethers } from 'ethers';
-  import { useWallets } from '@privy-io/react-auth';
+import { useWallets } from '@privy-io/react-auth';
 import axios from 'axios';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
@@ -38,16 +38,20 @@ const mockPairs = [
   { pair: 'XRP-VOL/USDT', price: 0.0123 },
 ];
 
-export default function TokenPage({ params }: { params: { id: string } }) {
+export default function TokenPage({ params }: { params: Promise<{ id: string }> }) {
+  // Unwrap the params Promise using React.use()
+  const { id } = use(params);
+  
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<any>(null);
   const [chartData, setChartData] = useState(initialChartData);
   const [chartTimeFrame, setChartTimeFrame] = useState('1m');
   const [selectedPair, setSelectedPair] = useState(mockPairs[0].pair);
-  const [highTokenAddress,setHighTokenAddress] = useState<string>("")
-  const [lowTokenAddress,setLowTokenAddress] = useState<string>("");
+  const [highTokenAddress, setHighTokenAddress] = useState<string>("");
+  const [lowTokenAddress, setLowTokenAddress] = useState<string>("");
 
   let { wallets } = useWallets();
+  
   useEffect(() => {
     const fetchToken = async () => {
       if (wallets.length === 0) {
@@ -68,29 +72,30 @@ export default function TokenPage({ params }: { params: { id: string } }) {
       const signer = await ethersProvider.getSigner();
 
       const VIX_CONTRACT_ABI = [
-  'function getVixData(address poolAdd) view returns (address vixHighToken, address _vixLowToken, uint256 _circulation0, uint256 _circulation1, uint256 _contractHoldings0, uint256 _contractHoldings1, uint256 _reserve0, uint256 _reserve1, address _poolAddress)',
-  'function vixTokensPrice(uint contractHoldings) view returns(uint)'
-];
+        'function getVixData(address poolAdd) view returns (address vixHighToken, address _vixLowToken, uint256 _circulation0, uint256 _circulation1, uint256 _contractHoldings0, uint256 _contractHoldings1, uint256 _reserve0, uint256 _reserve1, address _poolAddress)',
+        'function vixTokensPrice(uint contractHoldings) view returns(uint)'
+      ];
+      
       const vixContract = new ethers.Contract(
-          process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS!,
-          VIX_CONTRACT_ABI,
-          signer
-        );
-        const vixData = await vixContract.getVixData(params.id);
+        process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS!,
+        VIX_CONTRACT_ABI,
+        signer
+      );
+      
+      const vixData = await vixContract.getVixData(id);
       console.log('VIX Data:', vixData);
       console.log('VIX High Token:', vixData.vixHighToken);
-      const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${params.id}?include=base_token%2Cquote_token`;
+      
+      const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${id}?include=base_token%2Cquote_token`;
       console.log('Fetching data from:', geckoTerminalURL);
       const response = await fetch(geckoTerminalURL);
 
-        if (!response.ok) {
-          throw new Error(`Error fetching data: ${response.statusText}`);
-        }
+      if (!response.ok) {
+        throw new Error(`Error fetching data: ${response.statusText}`);
+      }
 
-        const data = await response.json();
-        console.log(data);
-      // Simulated token data; replace with contract call
-    
+      const data = await response.json();
+      console.log(data);
 
       let token0Price = await vixContract.vixTokensPrice(vixData._contractHoldings0);
       let token1Price = await vixContract.vixTokensPrice(vixData._contractHoldings1);
@@ -100,29 +105,28 @@ export default function TokenPage({ params }: { params: { id: string } }) {
       let lowTokenPrice = ethers.formatEther(token1Price);  
       console.log('High Token Price:', highTokenPrice);
       console.log('Low Token Price:', lowTokenPrice);
+      
       setToken({
-        id: params.id,
+        id: id,
         name: data.data.attributes.name,
         symbol: data.data.attributes.pool_name,
-        price: highTokenPrice+"$",
+        price: highTokenPrice + "$",
         change24h: 2.4,
         marketCap: '200k$',
         averageIV: '40.1%',
         volume: '12M$',
         icon0: data.included[0].attributes.image_url,  
         icon1: data.included?.[1]?.attributes?.image_url,
-
       });
+      
       setHighTokenAddress(vixData.vixHighToken);
-      console.log("h add",setHighTokenAddress)
+      console.log("h add", vixData.vixHighToken);
       setLowTokenAddress(vixData._vixLowToken);
       setLoading(false);
-
-
     };
 
     fetchToken();
-  }, [wallets, params.id]);
+  }, [wallets, id]); // Use id instead of params.id
 
   return (
     <div className="container  py-6 space-y-6 relative ">
@@ -153,30 +157,30 @@ export default function TokenPage({ params }: { params: { id: string } }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-                     <div className="relative w-10 h-6 mr-2">
-           <Image
-             src={token.icon0}
-             alt={token.symbol}
-             width={24}
-             height={24}
-             className="rounded-full absolute z-10 border-2 border-background"
-             onError={(e) => {
-               const target = e.target as HTMLImageElement;
-               target.src = '/placeholder.svg';
-             }}
-           />
-           <Image
-             src={token.icon1}
-             alt={token.symbol}
-             width={24}
-             height={24}
-             className="rounded-full absolute left-3 z-0 border-2 border-background"
-             onError={(e) => {
-               const target = e.target as HTMLImageElement;
-               target.src = '/placeholder.svg';
-             }}
-           />
-         </div>
+            <div className="relative w-10 h-6 mr-2">
+              <Image
+                src={token.icon0}
+                alt={token.symbol}
+                width={24}
+                height={24}
+                className="rounded-full absolute z-10 border-2 border-background"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = '/placeholder.svg';
+                }}
+              />
+              <Image
+                src={token.icon1}
+                alt={token.symbol}
+                width={24}
+                height={24}
+                className="rounded-full absolute left-3 z-0 border-2 border-background"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = '/placeholder.svg';
+                }}
+              />
+            </div>
             <h1 className="text-xl font-bold">{token.name}</h1>
             <div className="text-xs bg-secondary text-secondary-foreground px-1.5 py-0.5 rounded">
               HIGH
@@ -307,7 +311,7 @@ export default function TokenPage({ params }: { params: { id: string } }) {
               </CardContent>
             </Card>
 
-            <TradingWidget highTokenAdd={highTokenAddress} lowTokenAdd={lowTokenAddress} poolAdd={params.id}/>
+            <TradingWidget highTokenAdd={highTokenAddress} lowTokenAdd={lowTokenAddress} poolAdd={id} />
           </motion.div>
           <motion.div
             className="grid gap-6 grid-cols-1 lg:grid-cols-3"
@@ -320,32 +324,32 @@ export default function TokenPage({ params }: { params: { id: string } }) {
                 <h3 className="text-lg font-medium mb-4">Links</h3>
                 <div className="space-y-3">
                   <Link
-  href={`https://explorer.buildbear.io/dual-magma-e6ae5bf5/address/${highTokenAddress}`}
+                    href={`https://explorer.buildbear.io/dual-magma-e6ae5bf5/address/${highTokenAddress}`}
                     className="flex items-center gap-2 text-sm hover:text-primary"
                   >
                     <div className="w-6 h-6 relative">
-                         <Avatar className="h-6 w-6 bg-primary ">
-              <AvatarImage src="/avatar.png" alt="User"  />
-              <AvatarFallback className="bg-primary text-white">
-         H
-              </AvatarFallback>
-            </Avatar>
+                      <Avatar className="h-6 w-6 bg-primary ">
+                        <AvatarImage src="/avatar.png" alt="User"  />
+                        <AvatarFallback className="bg-primary text-white">
+                          H
+                        </AvatarFallback>
+                      </Avatar>
                     </div>
                     <span>SHIB/USDC HIGH TOKEN</span>
                     <ExternalLink className="h-3 w-3 ml-auto" />
                   </Link>
 
                   <Link
-  href={`https://explorer.buildbear.io/dual-magma-e6ae5bf5/address/${lowTokenAddress}`}
+                    href={`https://explorer.buildbear.io/dual-magma-e6ae5bf5/address/${lowTokenAddress}`}
                     className="flex items-center gap-2 text-sm hover:text-primary"
                   >
                     <div className="w-6 h-6 relative">
-                 <Avatar className="h-6 w-6 bg-[#ef4444]">
-              <AvatarImage src="/avatar.png" alt="User" />
-              <AvatarFallback className="bg-[#ef4444] text-white">
-         L
-              </AvatarFallback>
-            </Avatar>
+                      <Avatar className="h-6 w-6 bg-[#ef4444]">
+                        <AvatarImage src="/avatar.png" alt="User" />
+                        <AvatarFallback className="bg-[#ef4444] text-white">
+                          L
+                        </AvatarFallback>
+                      </Avatar>
                     </div>
                     <span>SHIB/USDC LOW TOKEN</span>
                     <ExternalLink className="h-3 w-3 ml-auto" />

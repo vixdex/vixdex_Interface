@@ -22,7 +22,7 @@ export type TokenInfo = {
   icon0: string;
   icon1: string;
   deriveToken: string;
-  marketCap: string;
+  marketCap: string | number;
   currentIV: string;
   change24h: number;
   perc?: string | number;
@@ -101,37 +101,22 @@ export function TradingPairs({ onFetched }: TradingPairsProps) {
 
             const poolAddress = vixData._poolAddress;
 
-            // Get token prices
-            const token0Price = await contract.vixTokensPrice(vixData._contractHoldings0);
-            const token1Price = await contract.vixTokensPrice(vixData._contractHoldings1);
+           // Assuming all of these return BigNumber
+const token0Price = await contract.vixTokensPrice(vixData._contractHoldings0);
+const token1Price = await contract.vixTokensPrice(vixData._contractHoldings1);
+const circulation0 = await contract.vixTokensPrice(vixData._circulation0);
+const circulation1 = await contract.vixTokensPrice(vixData._circulation1);
 
-            const circulation0 = await contract.vixTokensPrice(vixData._circulation0);
-            const circulation1 = await contract.vixTokensPrice(vixData._circulation1);
-// Convert all to BigInt for accurate math
+// Convert all to floating point numbers
+const priceHigh = parseFloat(ethers.formatEther(token0Price));
+const priceLow = parseFloat(ethers.formatEther(token1Price));
+const circ0 = parseFloat(ethers.formatEther(circulation0));
+const circ1 = parseFloat(ethers.formatEther(circulation1));
 
-
-const circulation0Parsed = parseFloat(ethers.formatEther(vixData._circulation0));
-const circulation1Parsed = parseFloat(ethers.formatEther(vixData._circulation1));
-
-const holding0Parsed = parseFloat(ethers.formatEther(vixData._contractHoldings0));
-const holding1Parsed = parseFloat(ethers.formatEther(vixData._contractHoldings1));
-
-// Multiply circulation * holdings
-const totalValue0 = circulation0Parsed * holding0Parsed;
-const totalValue1 = circulation1Parsed * holding1Parsed;
-
+// Multiply as numbers
+const totalValue0 = circ0 * priceHigh;
+const totalValue1 = circ1 * priceLow;
 const totalValue = totalValue0 + totalValue1;
-
-
-
-          
-            const priceHigh = parseFloat(ethers.formatEther(token0Price)).toFixed(6);
-            const priceLow = parseFloat(ethers.formatEther(token1Price)).toFixed(6);
-
-        
-
-            
-
             // Fetch additional data from GeckoTerminal if configured
             let tokenData = {
               name: `Pool ${poolAddress.slice(0, 8)}...`,
@@ -172,7 +157,7 @@ const totalValue = totalValue0 + totalValue1;
               priceHigh: `$${priceHigh}`,
               priceLow: `$${priceLow}`,
               deriveToken,
-              marketCap: `$${totalValue}`, // placeholder - you can calculate this
+              marketCap: `$${totalValue.toFixed(2)}`, // placeholder - you can calculate this
               currentIV: '40.1%', // placeholder - you can calculate this from event.initiatedIV
               change24h: Math.random() > 0.5 ? 2.4 : -1.2, // placeholder
               perc: tokenData.perc ,// placeholder
