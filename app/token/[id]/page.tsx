@@ -25,6 +25,7 @@ import { MobileTradingButtons } from '@/components/mobile-trading-buttons';
 import { ethers } from 'ethers';
 import { useWallets } from '@privy-io/react-auth';
 import axios from 'axios';
+
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const initialChartData = Array.from({ length: 60 }, (_, i) => ({
@@ -47,6 +48,7 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
   const [chartData, setChartData] = useState(initialChartData);
   const [chartTimeFrame, setChartTimeFrame] = useState('1m');
   const [selectedPair, setSelectedPair] = useState(mockPairs[0].pair);
+  const [selectedPriceType, setSelectedPriceType] = useState<'price0' | 'price1'>('price0');
   const [highTokenAddress, setHighTokenAddress] = useState<string>("");
   const [lowTokenAddress, setLowTokenAddress] = useState<string>("");
 
@@ -67,75 +69,93 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
 
       console.log('Using wallet:', wallet);
 
-      const privyProvider = await wallet.getEthereumProvider();
-      const ethersProvider = new ethers.BrowserProvider(privyProvider);
-      const signer = await ethersProvider.getSigner();
+      try {
+        const privyProvider = await wallet.getEthereumProvider();
+        const ethersProvider = new ethers.BrowserProvider(privyProvider);
+        const signer = await ethersProvider.getSigner();
 
-      const VIX_CONTRACT_ABI = [
-        'function getVixData(address poolAdd) view returns (address vixHighToken, address _vixLowToken, uint256 _circulation0, uint256 _circulation1, uint256 _contractHoldings0, uint256 _contractHoldings1, uint256 _reserve0, uint256 _reserve1, address _poolAddress)',
-        'function vixTokensPrice(uint contractHoldings) view returns(uint)'
-      ];
-      
-      const vixContract = new ethers.Contract(
-        process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS!,
-        VIX_CONTRACT_ABI,
-        signer
-      );
-      
-      const vixData = await vixContract.getVixData(id);
-      console.log('VIX Data:', vixData);
-      console.log('VIX High Token:', vixData.vixHighToken);
-      
-      const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${id}?include=base_token%2Cquote_token`;
-      console.log('Fetching data from:', geckoTerminalURL);
-      const response = await fetch(geckoTerminalURL);
+        const VIX_CONTRACT_ABI = [
+          'function getVixData(address poolAdd) view returns (address vixHighToken, address _vixLowToken, uint256 _circulation0, uint256 _circulation1, uint256 _contractHoldings0, uint256 _contractHoldings1, uint256 _reserve0, uint256 _reserve1, address _poolAddress)',
+          'function vixTokensPrice(uint contractHoldings) view returns(uint)'
+        ];
+        
+        const vixContract = new ethers.Contract(
+          process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS!,
+          VIX_CONTRACT_ABI,
+          signer
+        );
+        
+        const vixData = await vixContract.getVixData(id);
+        console.log('VIX Data:', vixData);
+        console.log('VIX High Token:', vixData.vixHighToken);
+        
+        const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${id}?include=base_token%2Cquote_token`;
+        console.log('Fetching data from:', geckoTerminalURL);
+        const response = await fetch(geckoTerminalURL);
 
-      if (!response.ok) {
-        throw new Error(`Error fetching data: ${response.statusText}`);
+        if (!response.ok) {
+          throw new Error(`Error fetching data: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log(data);
+
+        let token0Price = await vixContract.vixTokensPrice(vixData._contractHoldings0);
+        let token1Price = await vixContract.vixTokensPrice(vixData._contractHoldings1);
+        console.log('Token0 Price:', token0Price);
+        console.log('Token1 Price:', token1Price);
+        let highTokenPrice = ethers.formatEther(token0Price);
+        let lowTokenPrice = ethers.formatEther(token1Price);  
+        console.log('High Token Price:', highTokenPrice);
+        console.log('Low Token Price:', lowTokenPrice);
+        
+        setToken({
+          id: id,
+          name: data.data.attributes.name,
+          symbol: data.data.attributes.pool_name,
+          price: selectedPriceType === 'price0' ? highTokenPrice + "$" : lowTokenPrice + "$",
+          highPrice: highTokenPrice + "$",
+          lowPrice: lowTokenPrice + "$",
+          change24h: 2.4,
+          marketCap: '200k$',
+          averageIV: '40.1%',
+          volume: '12M$',
+          icon0: data.included[0].attributes.image_url,  
+          icon1: data.included?.[1]?.attributes?.image_url,
+        });
+        
+        setHighTokenAddress(vixData.vixHighToken);
+        console.log("h add", vixData.vixHighToken);
+        setLowTokenAddress(vixData._vixLowToken);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching token data:', error);
+        setLoading(false);
       }
-
-      const data = await response.json();
-      console.log(data);
-
-      let token0Price = await vixContract.vixTokensPrice(vixData._contractHoldings0);
-      let token1Price = await vixContract.vixTokensPrice(vixData._contractHoldings1);
-      console.log('Token0 Price:', token0Price);
-      console.log('Token1 Price:', token1Price);
-      let highTokenPrice = ethers.formatEther(token0Price);
-      let lowTokenPrice = ethers.formatEther(token1Price);  
-      console.log('High Token Price:', highTokenPrice);
-      console.log('Low Token Price:', lowTokenPrice);
-      
-      setToken({
-        id: id,
-        name: data.data.attributes.name,
-        symbol: data.data.attributes.pool_name,
-        price: highTokenPrice + "$",
-        change24h: 2.4,
-        marketCap: '200k$',
-        averageIV: '40.1%',
-        volume: '12M$',
-        icon0: data.included[0].attributes.image_url,  
-        icon1: data.included?.[1]?.attributes?.image_url,
-      });
-      
-      setHighTokenAddress(vixData.vixHighToken);
-      console.log("h add", vixData.vixHighToken);
-      setLowTokenAddress(vixData._vixLowToken);
-      setLoading(false);
     };
 
     fetchToken();
-  }, [wallets, id]); // Use id instead of params.id
+  }, [wallets, id, selectedPriceType]);
+
+  // Update displayed price when price type changes
+  useEffect(() => {
+    if (token) {
+      setToken((prev: any) => ({
+        ...prev,
+        price: selectedPriceType === 'price0' ? prev.highPrice : prev.lowPrice
+      }));
+    }
+  }, [selectedPriceType]);
 
   return (
-    <div className="container  py-6 space-y-6 relative ">
+    <div className="container py-6 space-y-6 relative">
       {loading ? (
         <TokenDetailSkeleton />
       ) : (
         <>
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[rgba(0,128,128,0.15)] bg-[length:200%_100%] animate-gradient-x pointer-events-none" />{' '}
-          <Link href="/" className="flex items-center ">
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[rgba(0,128,128,0.15)] bg-[length:200%_100%] animate-gradient-x pointer-events-none" />
+          
+          <Link href="/" className="flex items-center">
             <motion.div
               className="text-[#4ade80] hover:text-[#4ade80]/90 text-sm"
               whileHover={{ scale: 1.05 }}
@@ -144,13 +164,14 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
               <ArrowBigLeftDashIcon />
             </motion.div>
             <motion.div
-              className=" text-[#4ade80] hover:text-[#4ade80]/90 text-sm"
+              className="text-[#4ade80] hover:text-[#4ade80]/90 text-sm"
               whileHover={{ scale: 1.05 }}
               transition={{ type: 'spring', stiffness: 400, damping: 10 }}
             >
               <span>back to home</span>
             </motion.div>
           </Link>
+          
           <motion.div
             className="flex items-center gap-2 mb-4"
             initial={{ opacity: 0, y: 20 }}
@@ -183,11 +204,12 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
             </div>
             <h1 className="text-xl font-bold">{token.name}</h1>
             <div className="text-xs bg-secondary text-secondary-foreground px-1.5 py-0.5 rounded">
-              HIGH
+              {selectedPriceType === 'price0' ? 'HIGH' : 'LOW'}
             </div>
           </motion.div>
+          
           <motion.div
-            className="grid grid-cols-1 lg:grid-cols-3 gap-6 "
+            className="grid grid-cols-1 lg:grid-cols-3 gap-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
@@ -214,25 +236,31 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
                   </div>
 
                   <div className="flex gap-2">
-                    <div className="flex flex-col items-center">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-16 h-8 bg-secondary/50"
-                      >
-                        High
-                      </Button>
-                    </div>
-
-                    <div className="flex flex-col items-center">
-                      <Button size="sm" variant="outline" className="w-16 h-8">
-                        Low
-                      </Button>
-                    </div>
+                    <Button
+                      size="sm"
+                      variant={selectedPriceType === 'price0' ? 'default' : 'outline'}
+                      onClick={() => setSelectedPriceType('price0')}
+                      className="w-20 h-8"
+                    >
+                      High
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={selectedPriceType === 'price1' ? 'default' : 'outline'}
+                      onClick={() => setSelectedPriceType('price1')}
+                      className="w-20 h-8"
+                    >
+                      Low
+                    </Button>
                   </div>
                 </div>
 
-                <CandlestickChart width={750} height={250} />
+                <CandlestickChart
+                  networkId=""              
+                  poolId={id}        
+                  priceType={selectedPriceType}
+                  height={250}
+                />
 
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6">
                   <div className="text-center">
@@ -313,6 +341,7 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
 
             <TradingWidget highTokenAdd={highTokenAddress} lowTokenAdd={lowTokenAddress} poolAdd={id} />
           </motion.div>
+          
           <motion.div
             className="grid gap-6 grid-cols-1 lg:grid-cols-3"
             initial={{ opacity: 0, y: 20 }}
@@ -335,7 +364,7 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
                         </AvatarFallback>
                       </Avatar>
                     </div>
-                    <span>SHIB/USDC HIGH TOKEN</span>
+                    <span>HIGH TOKEN</span>
                     <ExternalLink className="h-3 w-3 ml-auto" />
                   </Link>
 
@@ -351,7 +380,7 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
                         </AvatarFallback>
                       </Avatar>
                     </div>
-                    <span>SHIB/USDC LOW TOKEN</span>
+                    <span>LOW TOKEN</span>
                     <ExternalLink className="h-3 w-3 ml-auto" />
                   </Link>
                 </div>
@@ -365,6 +394,7 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
               </CardContent>
             </Card>
           </motion.div>
+          
           <MobileTradingButtons />
         </>
       )}
@@ -390,7 +420,6 @@ function TokenDetailSkeleton() {
               </div>
 
               <div className="flex gap-2">
-                <Skeleton className="h-8 w-16" />
                 <Skeleton className="h-8 w-16" />
                 <Skeleton className="h-8 w-16" />
               </div>
