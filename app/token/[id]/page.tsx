@@ -69,48 +69,11 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
 
       console.log('Using wallet:', wallet);
 
-<<<<<<< haq
-      const privyProvider = await wallet.getEthereumProvider();
-      const ethersProvider = new ethers.BrowserProvider(privyProvider);
-      const signer = await ethersProvider.getSigner();
 
-      const VIX_CONTRACT_ABI = [
-        'function getVixData(address poolAdd) view returns (address vixHighToken, address _vixLowToken, uint256 _circulation0, uint256 _circulation1, uint256 _contractHoldings0, uint256 _contractHoldings1, uint256 _reserve0, uint256 _reserve1, address _poolAddress)',
-        'function vixTokensPrice(uint contractHoldings) view returns(uint)'
-      ];
-      
-      const vixContract = new ethers.Contract(
-        process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS!,
-        VIX_CONTRACT_ABI,
-        signer
-      );
-      
-      const vixData = await vixContract.getVixData(id);
-      console.log('VIX Data:', vixData);
-      console.log('VIX High Token:', vixData.vixHighToken);
-                      let MockPool_ABI = [
-      "function getRealPoolAddress() external view returns (address)"
-      ]
-
-                const mockPoolContract = new ethers.Contract(
-                  id,
-                  MockPool_ABI,
-                  ethersProvider
-                );
-
-                const realPoolAddress = await mockPoolContract.getRealPoolAddress();
-      
-      const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${realPoolAddress}?include=base_token%2Cquote_token`;
-      console.log('Fetching data from:', geckoTerminalURL);
-      const response = await fetch(geckoTerminalURL);
-
-      if (!response.ok) {
-        throw new Error(`Error fetching data: ${response.statusText}`);
-=======
       try {
         const privyProvider = await wallet.getEthereumProvider();
         const ethersProvider = new ethers.BrowserProvider(privyProvider);
-        const signer = await ethersProvider.getSigner();
+    const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
 
         const VIX_CONTRACT_ABI = [
           'function getVixData(address poolAdd) view returns (address vixHighToken, address _vixLowToken, uint256 _circulation0, uint256 _circulation1, uint256 _contractHoldings0, uint256 _contractHoldings1, uint256 _reserve0, uint256 _reserve1, address _poolAddress)',
@@ -120,14 +83,28 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
         const vixContract = new ethers.Contract(
           process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS!,
           VIX_CONTRACT_ABI,
-          signer
+          provider
         );
         
         const vixData = await vixContract.getVixData(id);
         console.log('VIX Data:', vixData);
         console.log('VIX High Token:', vixData.vixHighToken);
+                          let MockPool_ABI = [
+      "function getRealPoolAddress() external view returns (address)"
+      ]
+
+                const mockPoolContract = new ethers.Contract(
+                  id,
+                  MockPool_ABI,
+                  provider
+                );
+
+                const realPoolAddress = await mockPoolContract.getRealPoolAddress();
+      
+      const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${realPoolAddress}?include=base_token%2Cquote_token`;
+      console.log('Fetching data from:', geckoTerminalURL);
         
-        const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${id}?include=base_token%2Cquote_token`;
+        // const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${id}?include=base_token%2Cquote_token`;
         console.log('Fetching data from:', geckoTerminalURL);
         const response = await fetch(geckoTerminalURL);
 
@@ -169,7 +146,6 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
       } catch (error) {
         console.error('Error fetching token data:', error);
         setLoading(false);
->>>>>>> master
       }
     };
 
