@@ -128,7 +128,18 @@ const totalValue = totalValue0 + totalValue1;
 
             if (process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL && process.env.NEXT_PUBLIC_NETWORK) {
               try {
-                const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${poolAddress}?include=base_token%2Cquote_token`;
+                let MockPool_ABI = [
+      "function getRealPoolAddress() external view returns (address)"
+      ]
+
+                const mockPoolContract = new ethers.Contract(
+                  poolAddress,
+                  MockPool_ABI,
+                  provider
+                );
+
+                const realPoolAddress = await mockPoolContract.getRealPoolAddress();
+                const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${realPoolAddress}?include=base_token%2Cquote_token`;
                 const res = await fetch(geckoTerminalURL);
 
                 if (res.ok) {

@@ -18,6 +18,7 @@ export interface PairInitiatedEvent {
   transactionHash: string;
 }
 
+
 export const fetchPairInitiatedEvents = async (): Promise<PairInitiatedEvent[]> => {
   try {
     const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
@@ -63,7 +64,7 @@ export const fetchPairInitiatedEventsWithRange = async (
 ): Promise<PairInitiatedEvent[]> => {
   try {
     const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
-    const contract = new ethers.Contract(          process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS!,
+    const contract = new ethers.Contract(process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS!,
 ABI, provider);
 
     const latestBlock = toBlock || await provider.getBlockNumber();
