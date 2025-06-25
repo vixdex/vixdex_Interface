@@ -85,8 +85,19 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
       const vixData = await vixContract.getVixData(id);
       console.log('VIX Data:', vixData);
       console.log('VIX High Token:', vixData.vixHighToken);
+                      let MockPool_ABI = [
+      "function getRealPoolAddress() external view returns (address)"
+      ]
+
+                const mockPoolContract = new ethers.Contract(
+                  id,
+                  MockPool_ABI,
+                  ethersProvider
+                );
+
+                const realPoolAddress = await mockPoolContract.getRealPoolAddress();
       
-      const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${id}?include=base_token%2Cquote_token`;
+      const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${realPoolAddress}?include=base_token%2Cquote_token`;
       console.log('Fetching data from:', geckoTerminalURL);
       const response = await fetch(geckoTerminalURL);
 
