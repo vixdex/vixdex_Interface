@@ -33,7 +33,7 @@ interface TradingPairsProps {
 }
 
 const VIX_ABI = [
-  'function getVixData(address poolAdd) view returns (address vixHighToken, address _vixLowToken, uint256 _circulation0, uint256 _circulation1, uint256 _contractHoldings0, uint256 _contractHoldings1, uint256 _reserve0, uint256 _reserve1, address _poolAddress)',
+  'function getVixData(address poolAdd) view returns (address vixHighToken, address _vixLowToken, uint256 _circulation0, uint256 _circulation1, uint256 _contractHoldings0, uint256 _contractHoldings1, uint256 _reserve0, uint256 _reserve1,uint160 _averageIV,address _poolAddress)',
   'function vixTokensPrice(uint contractHoldings) view returns(uint)'
 ];
 
@@ -64,7 +64,7 @@ export function TradingPairs({ onFetched }: TradingPairsProps) {
           provider = new ethers.BrowserProvider(privyProvider);
         } else {
           // Fallback to RPC provider if no wallet connected
-          provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://rpc.buildbear.io/dual-magma-e6ae5bf5");
+          provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
         }
 
         const contract = new ethers.Contract(
@@ -110,8 +110,17 @@ const circulation1 = await contract.vixTokensPrice(vixData._circulation1);
 // Convert all to floating point numbers
 const priceHigh = parseFloat(ethers.formatEther(token0Price));
 const priceLow = parseFloat(ethers.formatEther(token1Price));
-const circ0 = parseFloat(ethers.formatEther(circulation0));
-const circ1 = parseFloat(ethers.formatEther(circulation1));
+const circ0 = parseFloat(ethers.formatEther(vixData._circulation0));
+const circ1 = parseFloat(ethers.formatEther(vixData._circulation1));
+console.log("circulations: ",circ0,circ1)
+let avgIV = vixData._averageIV; // should be a BigInt
+let bigIntValue = avgIV;
+let scaledDownedIV = Number(bigIntValue) / 1e15;
+console.log(scaledDownedIV);
+
+let resAvgIV = scaledDownedIV * Math.sqrt(365) * 100;
+console.log(resAvgIV);
+
 
 // Multiply as numbers
 const totalValue0 = circ0 * priceHigh;
@@ -139,6 +148,7 @@ const totalValue = totalValue0 + totalValue1;
                 );
 
                 const realPoolAddress = await mockPoolContract.getRealPoolAddress();
+                console.log("real pool",realPoolAddress);
                 const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${realPoolAddress}?include=base_token%2Cquote_token`;
                 const res = await fetch(geckoTerminalURL);
 
@@ -169,7 +179,7 @@ const totalValue = totalValue0 + totalValue1;
               priceLow: `$${priceLow}`,
               deriveToken,
               marketCap: `$${totalValue.toFixed(2)}`, // placeholder - you can calculate this
-              currentIV: '40.1%', // placeholder - you can calculate this from event.initiatedIV
+              currentIV: Math.floor(resAvgIV)+"%" , // placeholder - you can calculate this from event.initiatedIV
               change24h: Math.random() > 0.5 ? 2.4 : -1.2, // placeholder
               perc: tokenData.perc ,// placeholder
 
