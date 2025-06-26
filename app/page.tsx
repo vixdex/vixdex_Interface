@@ -70,7 +70,7 @@ export default function TradePage() {
     <div className="container py-6 space-y-6 relative">
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[rgba(0,128,128,0.15)] bg-[length:200%_100%] animate-gradient-x pointer-events-none" />
 
-      <motion.div
+      {/* <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
@@ -85,7 +85,7 @@ export default function TradePage() {
             <Button className="w-full md:w-auto">create derive</Button>
           </Link>
         </div>
-      </motion.div>
+      </motion.div> */}
 
       <motion.div
         className="flex flex-wrap md:flex-nowrap gap-4 mb-6 items-start md:items-center"

@@ -357,20 +357,24 @@ async function buyToken() {
   }
 
 
-  console.log('Buy function called');
-  if (selectedType === 'High') {
-    if (selectedToken === 'usdc') {
-      console.log("USDC to High");
-      // Normal on-chain buy
-      // buy(amountParsed, USDC, High, pool)
-    } else {
-      buy(amountParsed, highTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS!, poolAdd);
+ ethers.parseUnits(customAmount, 18);
+    
+    if (selectedType === 'High') {
+      if (selectedToken === 'usdc') {
+        // Handle USDC to High token swap
+        console.log("usdc selected: ",customAmount)
+        //buy(ethers.parseUnits(customAmount, 18), process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", highTokenAdd, poolAdd);
+      } else {
+        // Handle High token to USDC swap
+        buy(ethers.parseUnits(customAmount, 18), highTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", poolAdd);
+      }
     }
-  } else {
+
+  else {
     if (selectedToken === 'usdc') {
-      buy(amountParsed, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS!, lowTokenAdd, poolAdd);
+      buy(ethers.parseUnits(customAmount, 18),process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS!, lowTokenAdd, poolAdd);
     } else {
-      buy(amountParsed, lowTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS!, poolAdd);
+      buy(ethers.parseUnits(customAmount, 18), lowTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS!, poolAdd);
     }
   }
 }
