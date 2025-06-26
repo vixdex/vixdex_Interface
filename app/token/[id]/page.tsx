@@ -335,7 +335,7 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
                 <h3 className="text-lg font-medium mb-4">Links</h3>
                 <div className="space-y-3">
                   <Link
-                    href={`https://explorer.buildbear.io/dual-magma-e6ae5bf5/address/${highTokenAddress}`}
+                    href={"https://sepolia.etherscan.io/address/"+highTokenAddress}
                     className="flex items-center gap-2 text-sm hover:text-primary"
                   >
                     <div className="w-6 h-6 relative">
@@ -351,7 +351,7 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
                   </Link>
 
                   <Link
-                    href={`https://explorer.buildbear.io/dual-magma-e6ae5bf5/address/${lowTokenAddress}`}
+                    href={"https://sepolia.etherscan.io/address/"+lowTokenAddress}
                     className="flex items-center gap-2 text-sm hover:text-primary"
                   >
                     <div className="w-6 h-6 relative">
