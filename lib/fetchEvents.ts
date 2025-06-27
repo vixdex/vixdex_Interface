@@ -26,7 +26,7 @@ export const fetchPairInitiatedEvents = async (): Promise<PairInitiatedEvent[]> 
 , ABI, provider);
 
     const latestBlock = await provider.getBlockNumber();
-    const fromBlock = Math.max(0, latestBlock - 5000); // Ensure we don't go below block 0
+    const fromBlock = Math.max(0, latestBlock - 50000); // Ensure we don't go below block 0
 
     console.log(`Fetching events from block ${fromBlock} to ${latestBlock}`);
 
