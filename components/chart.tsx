@@ -5,6 +5,8 @@ import {
   AreaData,
   ISeriesApi
 } from 'lightweight-charts';
+import { io } from 'socket.io-client';
+import axios from 'axios';
 
 // Define the shape of candlestick data
 interface chartData {
@@ -19,7 +21,7 @@ interface ChartProps{
 
 // Available time ranges
 type TimeRange = '1H' | '4H' | '1D' ;
-
+let socket = io('http://localhost:8000');
 const CandlestickChart: React.FC<ChartProps> = ({
   width = 600,
   height = 400,
@@ -27,6 +29,7 @@ const CandlestickChart: React.FC<ChartProps> = ({
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [selectedRange, setSelectedRange] = useState<TimeRange>('1D');
   const chartRef = useRef<ISeriesApi<'Area'> | null>(null);
+  let [chart,setChart] = useState([])
 
     let redTheme = {
   lineColor: 'red',
@@ -39,26 +42,72 @@ let greenTheme = {
   topColor: 'rgba(16, 185, 129, 0.56)',
    bottomColor: 'rgba(16, 185, 129, 0.04)'
   }
+useEffect(() => {
+  const container = chartContainerRef.current;
+  if (!container) return;
 
-useEffect(()=>{
-  const chartOptions = { layout: { textColor: 'white', background: { type: 'solid', color: 'black' },grid:{vertLines:{visible:false},horzLines:{visible:false}}} };
-  const data = [{ value: 5, time: 1752412825 }];
+  container.innerHTML = "";
 
+  const chartOptions = {
+    layout: {
+      textColor: "white",
+      background: { type: "solid", color: "black" },
+      grid: { vertLines: { visible: false }, horzLines: { visible: false } }
+    }
+  };
 
-  let chart =  createChart(chartContainerRef.current!, chartOptions);
-  let theme = data[0].value < data[data.length-1].value ? greenTheme : redTheme
-  const areaSeries = chart.addAreaSeries(theme);
-chart.applyOptions({grid:{vertLines:{visible:false},horzLines:{visible:false}}})
+  let chart: any;
 
-areaSeries.setData(data);
-chartRef.current = areaSeries
-chart.timeScale().applyOptions({timeVisible:true})
-chart.timeScale().fitContent()
+  const fetchData = async () => {
+    try {
+      const response = await axios.get("http://localhost:8000/prices/0x45d50Cd59Fa8BD4a44d57C6452b051A033aEfEf5");
+      const prices = response.data.data.chart;
+
+      const data = prices
+        .map((item: any) => ({ time: item.time, value: item.price0 / 1e18 }))
+        .filter((obj, index, self) => index === self.findIndex(o => o.value === obj.value && o.time === obj.time));
+
+      console.log("data:", data);
+
+      chart = createChart(container, chartOptions);
+
+      const theme = data[0].value < data[data.length - 1].value ? greenTheme : redTheme;
+      const areaSeries = chart.addAreaSeries(theme);
+
+      areaSeries.setData(data);
+      chart.applyOptions({ grid: { vertLines: { visible: false }, horzLines: { visible: false } } });
+      chart.timeScale().applyOptions({ timeVisible: true });
+      chart.timeScale().fitContent();
+
+      chartRef.current = chart;
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  fetchData();
 
   return () => {
-    chart.remove();
+    if (chartRef.current) {
+      chartRef.current.remove();
+      chartRef.current = null;
+    }
   };
-},[])
+}, []);
+
+
+
+socket.on("connectedMsg",()=>{
+  console.log("success")
+})
+
+
+socket.on("newPrice", (res) => {
+  console.log("listened for new Price: ",res)
+  let newData = [...data,{time:res.time,value:res.price}]
+  setChart(newData)
+  chartRef.current?.setData(newData)
+})
 
 
 
