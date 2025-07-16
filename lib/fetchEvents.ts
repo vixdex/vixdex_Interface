@@ -1,99 +1,34 @@
-// lib/fetchEvents.ts
-import { ethers, EventLog } from "ethers";
-
-const RPC_URL = "https://rpc.buildbear.io/dual-magma-e6ae5bf5";
-
-// Minimal ABI with only the event
-const ABI = [
-  "event PairInitiated(address indexed _deriveToken, address indexed _vixHighToken, address indexed _vixLowToken, uint256 _initiatedTime, uint256 initiatedIV)"
-];
-
-export interface PairInitiatedEvent {
-  deriveToken: string;
-  vixHighToken: string;
-  vixLowToken: string;
-  initiatedTime: number;
-  initiatedIV: number;
-  blockNumber: number;
-  transactionHash: string;
-}
-
-
-export const fetchPairInitiatedEvents = async (): Promise<PairInitiatedEvent[]> => {
+// In your frontend code (e.g., src/lib/fetchEvents.ts)
+export const fetchPairInitiatedEvents = async (): Promise<any[]> => {
   try {
-    const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
-    const contract = new ethers.Contract(process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS!
-, ABI, provider);
-
-    const latestBlock = await provider.getBlockNumber();
-    const fromBlock = Math.max(0, latestBlock - 50000); // Ensure we don't go below block 0
-
-    console.log(`Fetching events from block ${fromBlock} to ${latestBlock}`);
-
-    const events = await contract.queryFilter(
-      contract.filters.PairInitiated(),
-      fromBlock,
-      latestBlock
+    const response = await fetch(
+      `${
+        process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      }/api/events/latest?limit=100`
     );
 
-    console.log(`Found ${events.length} PairInitiated events`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
-    return events.map((event) => {
-      const eventLog = event as EventLog;
-      
-      return {
-        deriveToken: eventLog.args._deriveToken,
-        vixHighToken: eventLog.args._vixHighToken,
-        vixLowToken: eventLog.args._vixLowToken,
-        initiatedTime: Number(eventLog.args._initiatedTime),
-        initiatedIV: Number(eventLog.args.initiatedIV),
-        blockNumber: eventLog.blockNumber,
-        transactionHash: eventLog.transactionHash,
-      };
-    });
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to fetch events');
+    }
+
+    // Transform the data to match the expected format
+    return data.data.map((event: any) => ({
+      deriveToken: event.deriveToken,
+      vixHighToken: event.vixHighToken,
+      vixLowToken: event.vixLowToken,
+      initiatedTime: event.initiatedTime,
+      initiatedIV: event.initiatedIV,
+      blockNumber: event.blockNumber,
+      transactionHash: event.transactionHash,
+    }));
   } catch (error) {
-    console.error('Failed to fetch events:', error);
-    throw error;
-  }
-};
-
-// Alternative function with custom block range
-export const fetchPairInitiatedEventsWithRange = async (
-  fromBlock: number,
-  toBlock?: number
-): Promise<PairInitiatedEvent[]> => {
-  try {
-    const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
-    const contract = new ethers.Contract(process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS!,
-ABI, provider);
-
-    const latestBlock = toBlock || await provider.getBlockNumber();
-
-    console.log(`Fetching events from block ${fromBlock} to ${latestBlock}`);
-
-    const events = await contract.queryFilter(
-      contract.filters.PairInitiated(),
-      fromBlock,
-      latestBlock
-    );
-
-    console.log(`Found ${events.length} PairInitiated events`);
-
-    return events.map((event) => {
-      const eventLog = event as EventLog;
-      
-      return {
-        deriveToken: eventLog.args._deriveToken,
-        vixHighToken: eventLog.args._vixHighToken,
-        vixLowToken: eventLog.args._vixLowToken,
-        initiatedTime: Number(eventLog.args._initiatedTime),
-        initiatedIV: Number(eventLog.args.initiatedIV),
-        blockNumber: eventLog.blockNumber,
-        transactionHash: eventLog.transactionHash,
-      };
-    });
-  } catch (error) {
-    console.error('Failed to fetch events with custom range:', error);
+    console.error('Error fetching events:', error);
     throw error;
   }
 };
