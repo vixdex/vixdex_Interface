@@ -362,8 +362,7 @@ async function buyToken() {
     if (selectedType === 'High') {
       if (selectedToken === 'usdc') {
         // Handle USDC to High token swap
-        console.log("usdc selected: ",customAmount)
-        //buy(ethers.parseUnits(customAmount, 18), process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", highTokenAdd, poolAdd);
+        buy(ethers.parseUnits(customAmount, 18), process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", highTokenAdd, poolAdd);
       } else {
         // Handle High token to USDC swap
         buy(ethers.parseUnits(customAmount, 18), highTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", poolAdd);

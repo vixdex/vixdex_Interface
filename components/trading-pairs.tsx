@@ -18,7 +18,7 @@ export type TokenInfo = {
   priceHigh: string;
   priceLow: string;
   circulation0: string;
-  circulation1 : string;
+  circulation1: string;
   icon0: string;
   icon1: string;
   deriveToken: string;
@@ -34,10 +34,11 @@ interface TradingPairsProps {
 
 const VIX_ABI = [
   'function getVixData(address poolAdd) view returns (address vixHighToken, address _vixLowToken, uint256 _circulation0, uint256 _circulation1, uint256 _contractHoldings0, uint256 _contractHoldings1, uint256 _reserve0, uint256 _reserve1,uint160 _averageIV,address _poolAddress)',
-  'function vixTokensPrice(uint contractHoldings) view returns(uint)'
+  'function vixTokensPrice(uint contractHoldings) view returns(uint)',
 ];
 
 export function TradingPairs({ onFetched }: TradingPairsProps) {
+  // In your TradingPairs component
   const [tokens, setTokens] = useState<TokenInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,40 +50,37 @@ export function TradingPairs({ onFetched }: TradingPairsProps) {
         setLoading(true);
         setError(null);
 
-        // Check if VIX contract address is configured
-        if (!process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS) {
-          throw new Error("VIX contract address not configured");
-        }
-
-        // For event fetching, we don't need wallet connection
-        // But for contract calls, we do need it
-        let provider: ethers.Provider;
-        
-        if (wallets.length > 0) {
-          const wallet = wallets[0];
-          const privyProvider = await wallet.getEthereumProvider();
-          provider = new ethers.BrowserProvider(privyProvider);
-        } else {
-          // Fallback to RPC provider if no wallet connected
-          provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
-        }
-
-        const contract = new ethers.Contract(
-          process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS,
-          VIX_ABI,
-          provider
-        );
-
-        // Fetch events
-        console.log("Fetching pair initiated events...");
+        // Fetch events from our API
+        console.log('Fetching pair initiated events...');
         const events = await fetchPairInitiatedEvents();
         console.log(`Found ${events.length} events`);
 
+        console.log(events[0].deriveToken);
         if (events.length === 0) {
           setTokens([]);
           setLoading(false);
           return;
         }
+
+        let provider;
+        if (wallets.length > 0) {
+          const wallet = wallets[0];
+          const privyProvider = await wallet.getEthereumProvider();
+          provider = new ethers.BrowserProvider(privyProvider);
+        } else {
+          provider = new ethers.JsonRpcProvider(
+            process.env.NEXT_PUBLIC_RPC_URL
+          );
+        }
+
+        const contract = new ethers.Contract(
+          process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS!,
+          VIX_ABI,
+          provider
+        );
+
+        // Rest of your existing code remains the same
+        // ...
 
         const result: TokenInfo[] = [];
 
@@ -101,45 +99,56 @@ export function TradingPairs({ onFetched }: TradingPairsProps) {
 
             const poolAddress = vixData._poolAddress;
 
-           // Assuming all of these return BigNumber
-const token0Price = await contract.vixTokensPrice(vixData._contractHoldings0);
-const token1Price = await contract.vixTokensPrice(vixData._contractHoldings1);
-const circulation0 = await contract.vixTokensPrice(vixData._circulation0);
-const circulation1 = await contract.vixTokensPrice(vixData._circulation1);
+            // Assuming all of these return BigNumber
+            const token0Price = await contract.vixTokensPrice(
+              vixData._contractHoldings0
+            );
+            const token1Price = await contract.vixTokensPrice(
+              vixData._contractHoldings1
+            );
+            const circulation0 = await contract.vixTokensPrice(
+              vixData._circulation0
+            );
+            const circulation1 = await contract.vixTokensPrice(
+              vixData._circulation1
+            );
 
-// Convert all to floating point numbers
-const priceHigh = parseFloat(ethers.formatEther(token0Price));
-const priceLow = parseFloat(ethers.formatEther(token1Price));
-const circ0 = parseFloat(ethers.formatEther(vixData._circulation0));
-const circ1 = parseFloat(ethers.formatEther(vixData._circulation1));
-console.log("circulations: ",circ0,circ1)
-let avgIV = vixData._averageIV; // should be a BigInt
-let bigIntValue = avgIV;
-let scaledDownedIV = Number(bigIntValue) / 1e15;
-console.log(scaledDownedIV);
+            // Convert all to floating point numbers
+            const priceHigh = parseFloat(ethers.formatEther(token0Price));
+            const priceLow = parseFloat(ethers.formatEther(token1Price));
+            const circ0 = parseFloat(ethers.formatEther(vixData._circulation0));
+            const circ1 = parseFloat(ethers.formatEther(vixData._circulation1));
+            console.log('circulations: ', circ0, circ1);
+            let avgIV = vixData._averageIV; // should be a BigInt
+            let bigIntValue = avgIV;
+            let scaledDownedIV = Number(bigIntValue) / 1e15;
+            console.log(scaledDownedIV);
 
-let resAvgIV = scaledDownedIV * Math.sqrt(365) * 100;
-console.log(resAvgIV);
+            let resAvgIV = scaledDownedIV * Math.sqrt(365) * 100;
+            console.log(resAvgIV);
 
-
-// Multiply as numbers
-const totalValue0 = circ0 * priceHigh;
-const totalValue1 = circ1 * priceLow;
-const totalValue = totalValue0 + totalValue1;
+            // Multiply as numbers
+            const totalValue0 = circ0 * priceHigh;
+            const totalValue1 = circ1 * priceLow;
+            const totalValue = totalValue0 + totalValue1;
             // Fetch additional data from GeckoTerminal if configured
             let tokenData = {
               name: `Pool ${poolAddress.slice(0, 8)}...`,
               symbol: `${deriveToken.slice(0, 6)}...`,
               icon0: '/placeholder.svg',
               icon1: '/placeholder.svg',
-              perc : "",
+              perc: '',
             };
 
-            if (process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL && process.env.NEXT_PUBLIC_NETWORK) {
+            if (
+              process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL &&
+              process.env.NEXT_PUBLIC_NETWORK
+            ) {
               try {
+
                 let MockPool_ABI = [
-      "function getRealPoolAddress() external view returns (address)"
-      ]
+                  'function getRealPoolAddress() external view returns (address)',
+                ];
 
                 const mockPoolContract = new ethers.Contract(
                   poolAddress,
@@ -147,23 +156,30 @@ const totalValue = totalValue0 + totalValue1;
                   provider
                 );
 
-                const realPoolAddress = await mockPoolContract.getRealPoolAddress();
-                console.log("real pool",realPoolAddress);
+                const realPoolAddress =
+                  await mockPoolContract.getRealPoolAddress();
+                console.log('real pool', realPoolAddress);
                 const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${realPoolAddress}?include=base_token%2Cquote_token`;
+
                 const res = await fetch(geckoTerminalURL);
 
                 if (res.ok) {
                   const data = await res.json();
                   tokenData = {
                     name: data.data?.attributes?.pool_name || tokenData.name,
-                    symbol: data.data?.attributes?.pool_name || tokenData.symbol,
-                    icon0: data.included?.[0]?.attributes?.image_url || tokenData.icon0,
-                    icon1: data.included?.[1]?.attributes?.image_url || tokenData.icon1,
-                    perc : data.data?.attributes?.pool_fee_percentage 
+                    symbol:
+                      data.data?.attributes?.pool_name || tokenData.symbol,
+                    icon0:
+                      data.included?.[0]?.attributes?.image_url ||
+                      tokenData.icon0,
+                    icon1:
+                      data.included?.[1]?.attributes?.image_url ||
+                      tokenData.icon1,
+                    perc: data.data?.attributes?.pool_fee_percentage,
                   };
                 }
               } catch (geckoError) {
-                console.warn("Failed to fetch GeckoTerminal data:", geckoError);
+                console.warn('Failed to fetch GeckoTerminal data:', geckoError);
               }
             }
 
@@ -173,37 +189,41 @@ const totalValue = totalValue0 + totalValue1;
               symbol: tokenData.symbol,
               icon0: tokenData.icon0,
               icon1: tokenData.icon1,
-              circulation0 : `$${circulation0}`,
-              circulation1 :`$${circulation1}`,
+              circulation0: `$${circulation0}`,
+              circulation1: `$${circulation1}`,
               priceHigh: `$${priceHigh}`,
               priceLow: `$${priceLow}`,
               deriveToken,
               marketCap: `$${totalValue.toFixed(2)}`, // placeholder - you can calculate this
-              currentIV: Math.floor(resAvgIV)+"%" , // placeholder - you can calculate this from event.initiatedIV
+              currentIV: Math.floor(resAvgIV) + '%', // placeholder - you can calculate this from event.initiatedIV
               change24h: Math.random() > 0.5 ? 2.4 : -1.2, // placeholder
-              perc: tokenData.perc ,// placeholder
-
+              perc: tokenData.perc, // placeholder
             });
 
-            console.log("dummy :" , result)
-
+            console.log('dummy :', result);
           } catch (err) {
-            console.warn(`Skipping pair ${event.deriveToken} due to error:`, err);
+            console.warn(
+              `Skipping pair ${event.deriveToken} due to error:`,
+              err
+            );
             continue;
           }
         }
 
         console.log(`Successfully processed ${result.length} trading pairs`);
         setTokens(result);
-        
+
         // Call the onFetched callback if provided
         if (onFetched) {
           onFetched(result);
         }
-
       } catch (error) {
-        console.error("Error fetching token data:", error);
-        setError(error instanceof Error ? error.message : "Failed to fetch trading pairs");
+        console.error('Error fetching token data:', error);
+        setError(
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch trading pairs'
+        );
       } finally {
         setLoading(false);
       }
@@ -218,10 +238,7 @@ const totalValue = totalValue0 + totalValue1;
     return (
       <div className="text-center py-8">
         <p className="text-red-500 mb-4">Error: {error}</p>
-        <Button 
-          onClick={() => window.location.reload()} 
-          variant="outline"
-        >
+        <Button onClick={() => window.location.reload()} variant="outline">
           Retry
         </Button>
       </div>
@@ -259,41 +276,47 @@ const totalValue = totalValue0 + totalValue1;
           >
             <td className="py-3 pl-2">
               <Link href={`/token/${pair.id}`} className="flex items-center">
-            <div className="relative w-10 h-6 mr-2">
-  <Image
-    src={pair.icon0}
-    alt={pair.symbol}
-    width={24}
-    height={24}
-    className="rounded-full absolute z-10 border-2 border-background"
-    onError={(e) => {
-      const target = e.target as HTMLImageElement;
-      target.src = '/placeholder.svg';
-    }}
-  />
-  <Image
-    src={pair.icon1}
-    alt={pair.symbol}
-    width={24}
-    height={24}
-    className="rounded-full absolute left-3 z-0 border-2 border-background"
-    onError={(e) => {
-      const target = e.target as HTMLImageElement;
-      target.src = '/placeholder.svg';
-    }}
-  />
-</div>
+                <div className="relative w-10 h-6 mr-2">
+                  <Image
+                    src={pair.icon0}
+                    alt={pair.symbol}
+                    width={24}
+                    height={24}
+                    className="rounded-full absolute z-10 border-2 border-background"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = '/placeholder.svg';
+                    }}
+                  />
+                  <Image
+                    src={pair.icon1}
+                    alt={pair.symbol}
+                    width={24}
+                    height={24}
+                    className="rounded-full absolute left-3 z-0 border-2 border-background"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = '/placeholder.svg';
+                    }}
+                  />
+                </div>
 
                 <div>
                   <div className="font-medium">{pair.name}</div>
-                  <div className="text-xs text-muted-foreground">{pair.perc}%</div>
+                  <div className="text-xs text-muted-foreground">
+                    {pair.perc}%
+                  </div>
                 </div>
               </Link>
             </td>
             <td className="text-right py-3">{pair.priceHigh}</td>
             <td className="text-right py-3">{pair.priceLow}</td>
-            <td className="text-right py-3 hidden md:table-cell">{pair.marketCap}</td>
-            <td className="text-right py-3 hidden md:table-cell">{pair.currentIV}</td>
+            <td className="text-right py-3 hidden md:table-cell">
+              {pair.marketCap}
+            </td>
+            <td className="text-right py-3 hidden md:table-cell">
+              {pair.currentIV}
+            </td>
             <td className="text-right py-3 pr-2">
               <Link href={`/token/${pair.deriveToken}`}>
                 <Button
