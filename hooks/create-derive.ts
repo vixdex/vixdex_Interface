@@ -9,6 +9,9 @@ const VIX_CONTRACT_ABI = [
   'function getVixData(address poolAdd) view returns (address vixHighToken, address _vixLowToken, uint256 _circulation0, uint256 _circulation1, uint256 _contractHoldings0, uint256 _contractHoldings1, uint256 _reserve0, uint256 _reserve1, address _poolAddress)',
 ];
 
+let MockPool_ABI = [
+  "function getRealPoolAddress() external view returns (address)"
+]
 export function useCreateDerive() {
   const { ready, authenticated, user } = usePrivy();
   const { wallets } = useWallets();
@@ -35,11 +38,17 @@ export function useCreateDerive() {
       let poolName = '';
       let poolPercentage = '';
       let volumeData: string[] = [];
-
+      let mockPoolContract = new ethers.Contract(
+        poolAddress,
+        MockPool_ABI,
+        ethersProvider
+      );
+      let getRealPoolAddress = await mockPoolContract.getRealPoolAddress();
+      console.log('Real Pool Address:', getRealPoolAddress);
       try {
         const oracleRes = await axios.post(
-          process.env.NEXT_PUBLIC_NODE_URL + 'volume/uniswapV3/pool/oracle',
-          { poolAddress, chain }
+          process.env.NEXT_PUBLIC_NODE_URL + 'volume/uniswapV3/pool/oracle/mock',
+          { poolAddress, chain ,realAddress: getRealPoolAddress },
         );
 
         const {
