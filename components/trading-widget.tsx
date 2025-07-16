@@ -15,6 +15,8 @@ import {
   SelectTrigger,
 } from '@/components/ui/select';
 import { ethers, toNumber } from 'ethers';
+import { approveUSDC, burnUSDC, mintUSDC, retrieveAttestation } from '@/hooks/usdc';
+import { useWallets } from '@privy-io/react-auth';
 
 interface Token {
   id: string;
@@ -56,17 +58,36 @@ const ERC20_ABI = [
 
 // Chain configurations
 const CHAIN_CONFIG = {
+  // Mainnets
   1: { name: 'Ethereum', color: '#627EEA' },
   137: { name: 'Polygon', color: '#8247E5' },
   56: { name: 'BSC', color: '#F3BA2F' },
   8453: { name: 'Base', color: '#0052FF' },
   42161: { name: 'Arbitrum', color: '#28A0F0' },
   10: { name: 'Optimism', color: '#FF0420' },
-   26735: {name: "BuildBear", color : "fff000"}
-  // Add more chains as needed
+
+  // Testnets
+  11155111: { name: 'Ethereum Sepolia', color: '#8A92B2' },
+  80002: { name: 'Polygon Amoy', color: '#8247E5' },
+  97: { name: 'BSC Testnet', color: '#F3BA2F' },
+  84532: { name: 'Base Sepolia', color: '#0052FF' },
+  421614: { name: 'Arbitrum Sepolia', color: '#28A0F0' },
+  11155420: { name: 'Optimism Sepolia', color: '#FF0420' },
+  59141: { name: 'Linea Sepolia', color: '#0057FF' },
+  534351: { name: 'Scroll Sepolia', color: '#FBCC5C' },
+  5001: { name: 'Mantle Testnet', color: '#FBCC5C' },
+  1442: { name: 'Polygon zkEVM Testnet', color: '#8247E5' },
+  42170: { name: 'Arbitrum Nova', color: '#28A0F0' },
+
+  // Custom
+  26735: { name: 'BuildBear', color: '#FFF000' },
 };
 
+
 export function TradingWidget({ highTokenAdd, lowTokenAdd, poolAdd }: ElementProps) {
+  const {wallets} = useWallets()
+  const account = wallets[0]?.address as `0x${string}`;
+
   const [selectedType, setSelectedType] = useState<'High' | 'Low'>('High');
   const [selectedAmount, setSelectedAmount] = useState<string>('1$');
   const [customAmount, setCustomAmount] = useState<string>('1');
@@ -273,9 +294,70 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd, poolAdd }: ElementPro
     console.log("USD Value:", calculateUSDValue());
   };
 
-  function buyToken() {
-    console.log('Buy function called');
-    console.log('Custom Amount:', ethers.parseUnits(customAmount, 18));
+
+// Or with proper error handling:
+async function buyToken() {
+  // Check if wallet is connected
+  if (!wallets || wallets.length === 0) {
+    console.error('No wallet connected');
+    return;
+  }
+
+  const account = wallets[0].address as `0x${string}`;
+  
+  const amountParsed = ethers.parseUnits(customAmount, 6);
+  const isCrossChain = currentChain !== 11155111;
+
+  if (isCrossChain) {
+    console.log("Cross-chain swap triggered");
+
+    const chain = { 
+      id: currentChain!, 
+      name: "Unknown", 
+      network: "unknown", 
+      nativeCurrency: { name: "", symbol: "", decimals: 18 }, 
+      rpcUrls: { default: { http: "'https://sepolia.base.org" } } 
+    };
+
+    await approveUSDC({
+      sourceChainId: currentChain!,
+      chain,
+      account,
+      wallets,
+      amount: amountParsed,
+
+    });
+
+    const burnTxHash = await burnUSDC({
+      sourceChainId: currentChain!,
+      destChainId: 11155111,
+      chain,
+      account,
+      destinationAddress: account,
+      amount: amountParsed,
+      wallets,
+    });
+
+    const attestation = await retrieveAttestation(burnTxHash, currentChain!);
+    await mintUSDC({
+      destChainId: 11155111,
+      chain: { 
+        id: 11155111, 
+        name: "Sepolia", 
+        network: "sepolia", 
+        nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, 
+        rpcUrls: { default: { http: ["https://sepolia.infura.io/v3/your-key"] } } 
+      },
+      account,
+      attestation,
+      wallets,
+    });
+
+    return;
+  }
+
+
+ ethers.parseUnits(customAmount, 18);
     
     if (selectedType === 'High') {
       if (selectedToken === 'usdc') {
@@ -285,39 +367,118 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd, poolAdd }: ElementPro
         // Handle High token to USDC swap
         buy(ethers.parseUnits(customAmount, 18), highTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", poolAdd);
       }
+    }
+
+  else {
+    if (selectedToken === 'usdc') {
+      buy(ethers.parseUnits(customAmount, 18),process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS!, lowTokenAdd, poolAdd);
     } else {
-      if (selectedToken === 'usdc') {
-        // Handle USDC to Low token swap
-        buy(ethers.parseUnits(customAmount, 18), process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", lowTokenAdd, poolAdd);
-      } else {
-        // Handle Low token to USDC swap
-        buy(ethers.parseUnits(customAmount, 18), lowTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", poolAdd);
+      buy(ethers.parseUnits(customAmount, 18), lowTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS!, poolAdd);
+    }
+  }
+}
+
+
+ async function sellToken() {
+  console.log('Sell function called');
+  console.log('Custom Amount:', ethers.parseUnits(customAmount, 18));
+
+  // Check if wallet is connected
+  if (!wallets || wallets.length === 0) {
+    console.error('No wallet connected');
+    return;
+  }
+
+  const account = wallets[0].address as `0x${string}`;
+  const isCrossChain = currentChain !== 11155111; // Check if user wants USDC on different chain
+
+  if (selectedType === 'High') {
+    if (selectedToken === 'usdc') {
+      // Selling USDC for High tokens (essentially buying High)
+      buy(ethers.parseUnits(customAmount, 18), process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", highTokenAdd, poolAdd);
+    } else {
+      // Selling High tokens for USDC
+      await sell(ethers.parseUnits(customAmount, 18), highTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", poolAdd);
+      
+      // If cross-chain, transfer USDC to preferred chain
+      if (isCrossChain) {
+        await transferUSDCToPeferredChain(account, ethers.parseUnits(customAmount, 6)); // Assuming 6 decimals for USDC
+      }
+    }
+  } else {
+    if (selectedToken === 'usdc') {
+      // Selling USDC for Low tokens (essentially buying Low)
+      buy(ethers.parseUnits(customAmount, 18), process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", lowTokenAdd, poolAdd);
+    } else {
+      // Selling Low tokens for USDC
+      await sell(ethers.parseUnits(customAmount, 18), lowTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", poolAdd);
+      
+      // If cross-chain, transfer USDC to preferred chain
+      if (isCrossChain) {
+        await transferUSDCToPeferredChain(account, ethers.parseUnits(customAmount, 6)); // Assuming 6 decimals for USDC
       }
     }
   }
+}
 
-  function sellToken() {
-    console.log('Sell function called');
-    console.log('Custom Amount:', ethers.parseUnits(customAmount, 18));
+async function transferUSDCToPeferredChain(account, usdcAmount) {
+  console.log("Cross-chain USDC transfer triggered");
 
-    if (selectedType === 'High') {
-      if (selectedToken === 'usdc') {
-        // Selling USDC for High tokens (essentially buying High)
-        buy(ethers.parseUnits(customAmount, 18), process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", highTokenAdd, poolAdd);
-      } else {
-        // Selling High tokens for USDC
-        sell(ethers.parseUnits(customAmount, 18), highTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", poolAdd);
-      }
-    } else {
-      if (selectedToken === 'usdc') {
-        // Selling USDC for Low tokens (essentially buying Low)
-        buy(ethers.parseUnits(customAmount, 18), process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", lowTokenAdd, poolAdd);
-      } else {
-        // Selling Low tokens for USDC
-        sell(ethers.parseUnits(customAmount, 18), lowTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", poolAdd);
-      }
-    }
+  const sourceChain = { 
+    id: 11155111, // Sepolia (where the sell happened)
+    name: "Sepolia", 
+    network: "sepolia", 
+    nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, 
+    rpcUrls: { default: { http: ["https://sepolia.infura.io/v3/your-key"] } } 
+  };
+
+  const destChain = { 
+    id: currentChain!, 
+    name: "Unknown", 
+    network: "unknown", 
+    nativeCurrency: { name: "", symbol: "", decimals: 18 }, 
+    rpcUrls: { default: { http: "https://sepolia.base.org" } } 
+  };
+
+  try {
+    // Step 1: Approve USDC for burning on source chain (Sepolia)
+    await approveUSDC({
+      sourceChainId: 11155111,
+      chain: sourceChain,
+      account,
+      wallets,
+      amount: usdcAmount,
+    });
+
+    // Step 2: Burn USDC on source chain
+    const burnTxHash = await burnUSDC({
+      sourceChainId: 11155111,
+      destChainId: currentChain!,
+      chain: sourceChain,
+      account,
+      destinationAddress: account,
+      amount: usdcAmount,
+      wallets,
+    });
+
+    // Step 3: Retrieve attestation
+    const attestation = await retrieveAttestation(burnTxHash, 11155111);
+
+    // Step 4: Mint USDC on destination chain
+    await mintUSDC({
+      destChainId: currentChain!,
+      chain: destChain,
+      account,
+      attestation,
+      wallets,
+    });
+
+    console.log("USDC successfully transferred to preferred chain");
+  } catch (error) {
+    console.error("Error transferring USDC to preferred chain:", error);
+    throw error;
   }
+}
 
   return (
     <Card className="w-full max-w-sm bg-black border-gray-800 hidden md:block">

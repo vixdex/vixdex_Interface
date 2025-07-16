@@ -69,10 +69,11 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
 
       console.log('Using wallet:', wallet);
 
+
       try {
         const privyProvider = await wallet.getEthereumProvider();
         const ethersProvider = new ethers.BrowserProvider(privyProvider);
-        const signer = await ethersProvider.getSigner();
+    const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
 
         const VIX_CONTRACT_ABI = [
           'function getVixData(address poolAdd) view returns (address vixHighToken, address _vixLowToken, uint256 _circulation0, uint256 _circulation1, uint256 _contractHoldings0, uint256 _contractHoldings1, uint256 _reserve0, uint256 _reserve1, address _poolAddress)',
@@ -82,14 +83,28 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
         const vixContract = new ethers.Contract(
           process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS!,
           VIX_CONTRACT_ABI,
-          signer
+          provider
         );
         
         const vixData = await vixContract.getVixData(id);
         console.log('VIX Data:', vixData);
         console.log('VIX High Token:', vixData.vixHighToken);
+                          let MockPool_ABI = [
+      "function getRealPoolAddress() external view returns (address)"
+      ]
+
+                const mockPoolContract = new ethers.Contract(
+                  id,
+                  MockPool_ABI,
+                  provider
+                );
+
+                const realPoolAddress = await mockPoolContract.getRealPoolAddress();
+      
+      const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${realPoolAddress}?include=base_token%2Cquote_token`;
+      console.log('Fetching data from:', geckoTerminalURL);
         
-        const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${id}?include=base_token%2Cquote_token`;
+        // const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${id}?include=base_token%2Cquote_token`;
         console.log('Fetching data from:', geckoTerminalURL);
         const response = await fetch(geckoTerminalURL);
 
@@ -353,7 +368,7 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
                 <h3 className="text-lg font-medium mb-4">Links</h3>
                 <div className="space-y-3">
                   <Link
-                    href={`https://explorer.buildbear.io/dual-magma-e6ae5bf5/address/${highTokenAddress}`}
+                    href={"https://sepolia.etherscan.io/address/"+highTokenAddress}
                     className="flex items-center gap-2 text-sm hover:text-primary"
                   >
                     <div className="w-6 h-6 relative">
@@ -369,7 +384,7 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
                   </Link>
 
                   <Link
-                    href={`https://explorer.buildbear.io/dual-magma-e6ae5bf5/address/${lowTokenAddress}`}
+                    href={"https://sepolia.etherscan.io/address/"+lowTokenAddress}
                     className="flex items-center gap-2 text-sm hover:text-primary"
                   >
                     <div className="w-6 h-6 relative">
