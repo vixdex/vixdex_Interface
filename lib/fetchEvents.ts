@@ -1,5 +1,6 @@
-// In your frontend code (e.g., src/lib/fetchEvents.ts)
+
 export const fetchPairInitiatedEvents = async (): Promise<any[]> => {
+
   try {
     const response = await fetch(
       `${

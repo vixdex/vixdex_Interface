@@ -145,6 +145,7 @@ export function TradingPairs({ onFetched }: TradingPairsProps) {
               process.env.NEXT_PUBLIC_NETWORK
             ) {
               try {
+
                 let MockPool_ABI = [
                   'function getRealPoolAddress() external view returns (address)',
                 ];
@@ -159,6 +160,7 @@ export function TradingPairs({ onFetched }: TradingPairsProps) {
                   await mockPoolContract.getRealPoolAddress();
                 console.log('real pool', realPoolAddress);
                 const geckoTerminalURL = `${process.env.NEXT_PUBLIC_GEKO_TERMINAL_URL}networks/${process.env.NEXT_PUBLIC_NETWORK}/pools/${realPoolAddress}?include=base_token%2Cquote_token`;
+
                 const res = await fetch(geckoTerminalURL);
 
                 if (res.ok) {
