@@ -2,142 +2,114 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   createChart,
-  IChartApi,
-  ISeriesApi,
-  CandlestickData,
+  AreaData,
+  ISeriesApi
 } from 'lightweight-charts';
+import { io } from 'socket.io-client';
+import axios from 'axios';
 
 // Define the shape of candlestick data
-interface CandleData {
+interface chartData {
   time: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
+  value:number;
 }
 
-// Props for the chart component
-interface CandlestickChartProps {
-  width?: number;
-  height?: number;
+interface ChartProps{
+  width: number;
+  height: number;
 }
 
 // Available time ranges
-type TimeRange = '1D' | '5D' | '1M' | '3M' | '6M' | '1Y';
-
-const CandlestickChart: React.FC<CandlestickChartProps> = ({
+type TimeRange = '1H' | '4H' | '1D' ;
+let socket = io('http://localhost:8000');
+const CandlestickChart: React.FC<ChartProps> = ({
   width = 600,
   height = 400,
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
-  const [selectedRange, setSelectedRange] = useState<TimeRange>('1M');
+  const [selectedRange, setSelectedRange] = useState<TimeRange>('1D');
+  const chartRef = useRef<ISeriesApi<'Area'> | null>(null);
+  let [chart,setChart] = useState([])
 
-  // Generate random candlestick data based on the selected range
-  const generateRandomData = (range: TimeRange): CandleData[] => {
-    const data: CandleData[] = [];
-    const startDate = new Date('2025-01-01');
-    let lastClose = 100;
+    let redTheme = {
+  lineColor: 'red',
+  topColor: 'rgba(239, 68, 68, 0.56)',     // red-500 with opacity
+  bottomColor: 'rgba(239, 68, 68, 0.04)',  // red-500 with lower opacity
+}
 
-    // Define the number of data points based on the range
-    const rangeDays: Record<TimeRange, number> = {
-      '1D': 1,
-      '5D': 5,
-      '1M': 30,
-      '3M': 90,
-      '6M': 180,
-      '1Y': 365,
-    };
+let greenTheme = { 
+  lineColor: 'green', 
+  topColor: 'rgba(16, 185, 129, 0.56)',
+   bottomColor: 'rgba(16, 185, 129, 0.04)'
+  }
+useEffect(() => {
+  const container = chartContainerRef.current;
+  if (!container) return;
 
-    const days = rangeDays[range];
+  container.innerHTML = "";
 
-    for (let i = 0; i < days; i++) {
-      const time = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
-      const open = lastClose;
-      const change = (Math.random() - 0.5) * 10;
-      const close = open + change;
-      const high = Math.max(open, close) + Math.random() * 5;
-      const low = Math.min(open, close) - Math.random() * 5;
-
-      data.push({
-        time: time.toISOString().split('T')[0], // Format as YYYY-MM-DD
-        open: Number(open.toFixed(2)),
-        high: Number(high.toFixed(2)),
-        low: Number(low.toFixed(2)),
-        close: Number(close.toFixed(2)),
-      });
-
-      lastClose = close;
+  const chartOptions = {
+    layout: {
+      textColor: "white",
+      background: { type: "solid", color: "black" },
+      grid: { vertLines: { visible: false }, horzLines: { visible: false } }
     }
-
-    return data;
   };
 
-  useEffect(() => {
-    if (chartContainerRef.current) {
-      // Initialize the chart
-      chartRef.current = createChart(chartContainerRef.current, {
-        width,
-        height,
-        layout: {
-          background: { color: '#000000' },
-          textColor: '#333',
-        },
-        grid: {
-          vertLines: { color: '#000000' },
-          horzLines: { color: '#000000' },
-        },
-        timeScale: {
-          timeVisible: true,
-          secondsVisible: false,
-        },
-      });
+  let chart: any;
 
-      // Add candlestick series
-      seriesRef.current = chartRef.current.addCandlestickSeries({
-        upColor: '#26a69a',
-        downColor: '#ef5350',
-        borderVisible: false,
-        wickUpColor: '#26a69a',
-        wickDownColor: '#ef5350',
-      });
+  const fetchData = async () => {
+    try {
+      const response = await axios.get("http://localhost:8000/prices/0x45d50Cd59Fa8BD4a44d57C6452b051A033aEfEf5");
+      const prices = response.data.data.chart;
 
-      // Set initial data
-      const data = generateRandomData(selectedRange);
-      seriesRef.current.setData(data);
+      const data = prices
+        .map((item: any) => ({ time: item.time, value: item.price0 / 1e18 }))
+        .filter((obj, index, self) => index === self.findIndex(o => o.value === obj.value && o.time === obj.time));
 
-      // Auto-resize chart on window resize
-      const handleResize = () => {
-        if (chartRef.current && chartContainerRef.current) {
-          chartRef.current.resize(
-            chartContainerRef.current.clientWidth,
-            chartContainerRef.current.clientHeight
-          );
-        }
-      };
+      console.log("data:", data);
 
-      window.addEventListener('resize', handleResize);
+      chart = createChart(container, chartOptions);
 
-      // Cleanup on unmount
-      return () => {
-        window.removeEventListener('resize', handleResize);
-        if (chartRef.current) {
-          chartRef.current.remove();
-          chartRef.current = null;
-        }
-      };
+      const theme = data[0].value < data[data.length - 1].value ? greenTheme : redTheme;
+      const areaSeries = chart.addAreaSeries(theme);
+
+      areaSeries.setData(data);
+      chart.applyOptions({ grid: { vertLines: { visible: false }, horzLines: { visible: false } } });
+      chart.timeScale().applyOptions({ timeVisible: true });
+      chart.timeScale().fitContent();
+
+      chartRef.current = chart;
+    } catch (err) {
+      console.error(err);
     }
-  }, [width, height]);
+  };
 
-  // Update chart data when the range changes
-  useEffect(() => {
-    if (seriesRef.current && chartRef.current) {
-      const data = generateRandomData(selectedRange);
-      seriesRef.current.setData(data);
-      chartRef.current.timeScale().fitContent();
+  fetchData();
+
+  return () => {
+    if (chartRef.current) {
+      chartRef.current.remove();
+      chartRef.current = null;
     }
-  }, [selectedRange]);
+  };
+}, []);
+
+
+
+socket.on("connectedMsg",()=>{
+  console.log("success")
+})
+
+
+socket.on("newPrice", (res) => {
+  console.log("listened for new Price: ",res)
+  let newData = [...data,{time:res.time,value:res.price}]
+  setChart(newData)
+  chartRef.current?.setData(newData)
+})
+
+
 
   // Handle range selection
   const handleRangeChange = (range: TimeRange) => {
@@ -145,20 +117,20 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
   };
 
   // Time range options
-  const timeRanges: TimeRange[] = ['1D', '5D', '1M', '1Y'];
+  const timeRanges: TimeRange[] = ['1H','4H','1D'];
 
   return (
     <div className="w-full max-w-3xl mx-auto p-4 shadow-md rounded-lg bg-transparent">
       {/* Range Switcher */}
-      <div className="mb-4 flex space-x-2">
+      <div className="mb-4 space-x-2 hidden">
         {timeRanges.map((range) => (
           <button
             key={range}
             onClick={() => handleRangeChange(range)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`px-4 py-1 rounded-lg text-xs font-medium transition-colors ${
               selectedRange === range
                 ? 'bg-blue-500 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+                : 'bg-gray-700 text-white-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-white-200 dark:hover:bg-gray-600 hover:text-black'
             }`}
           >
             {range}
