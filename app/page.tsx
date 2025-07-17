@@ -27,44 +27,56 @@ export default function TradePage() {
     setFilteredPairs(data);
   }, []);
 
-  const handlePoolFilterChange = useCallback((value: string) => {
-    setPoolFilter(value);
-    // Apply filter logic here
-    let filtered = [...tradingPairs];
-    
-    switch (value) {
-      case 'trending':
-        filtered = filtered.filter(pair => pair.change24h > 5);
-        break;
-      case 'new':
-        filtered = filtered.sort((a, b) => b.id.localeCompare(a.id));
-        break;
-      default:
-        filtered = tradingPairs;
-    }
-    
-    setFilteredPairs(filtered);
-  }, [tradingPairs]);
+  const handlePoolFilterChange = useCallback(
+    (value: string) => {
+      setPoolFilter(value);
+      // Apply filter logic here
+      let filtered = [...tradingPairs];
 
-  const handleSortChange = useCallback((value: string) => {
-    setSortBy(value);
-    let sorted = [...filteredPairs];
-    
-    switch (value) {
-      case 'volume':
-        sorted = sorted.sort((a, b) => parseFloat(b.marketCap) - parseFloat(a.marketCap));
-        break;
-      case 'price':
-        sorted = sorted.sort((a, b) => 
-          parseFloat(b.priceHigh.replace('$', '')) - parseFloat(a.priceHigh.replace('$', ''))
-        );
-        break;
-      default: // market cap
-        sorted = sorted.sort((a, b) => parseFloat(b.marketCap) - parseFloat(a.marketCap));
-    }
-    
-    setFilteredPairs(sorted);
-  }, [filteredPairs]);
+      switch (value) {
+        case 'trending':
+          filtered = filtered.filter((pair) => pair.change24h > 5);
+          break;
+        case 'new':
+          filtered = filtered.sort((a, b) => b.id.localeCompare(a.id));
+          break;
+        default:
+          filtered = tradingPairs;
+      }
+
+      setFilteredPairs(filtered);
+    },
+    [tradingPairs]
+  );
+
+  const handleSortChange = useCallback(
+    (value: string) => {
+      setSortBy(value);
+      let sorted = [...filteredPairs];
+
+      switch (value) {
+        case 'volume':
+          sorted = sorted.sort(
+            (a, b) => parseFloat(b.marketCap) - parseFloat(a.marketCap)
+          );
+          break;
+        case 'price':
+          sorted = sorted.sort(
+            (a, b) =>
+              parseFloat(b.priceHigh.replace('$', '')) -
+              parseFloat(a.priceHigh.replace('$', ''))
+          );
+          break;
+        default: // market cap
+          sorted = sorted.sort(
+            (a, b) => parseFloat(b.marketCap) - parseFloat(a.marketCap)
+          );
+      }
+
+      setFilteredPairs(sorted);
+    },
+    [filteredPairs]
+  );
 
   return (
     <div className="container py-6 space-y-6 relative">
@@ -161,7 +173,7 @@ export default function TradePage() {
       </motion.div>
 
       {/* Stats Section */}
-      {tradingPairs.length > 0 && (
+      {/* {tradingPairs.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -177,7 +189,7 @@ export default function TradePage() {
           <Card className="bg-card/50">
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold">
-                {tradingPairs.filter(p => p.change24h > 0).length}
+                {tradingPairs.filter((p) => p.change24h > 0).length}
               </div>
               <div className="text-sm text-muted-foreground">Gaining</div>
             </CardContent>
@@ -185,7 +197,7 @@ export default function TradePage() {
           <Card className="bg-card/50">
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold">
-                {tradingPairs.filter(p => p.change24h < 0).length}
+                {tradingPairs.filter((p) => p.change24h < 0).length}
               </div>
               <div className="text-sm text-muted-foreground">Losing</div>
             </CardContent>
@@ -193,13 +205,19 @@ export default function TradePage() {
           <Card className="bg-card/50">
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold">
-                {(tradingPairs.reduce((acc, p) => acc + Math.abs(p.change24h), 0) / tradingPairs.length).toFixed(1)}%
+                {(
+                  tradingPairs.reduce(
+                    (acc, p) => acc + Math.abs(p.change24h),
+                    0
+                  ) / tradingPairs.length
+                ).toFixed(1)}
+                %
               </div>
               <div className="text-sm text-muted-foreground">Avg Change</div>
             </CardContent>
           </Card>
         </motion.div>
-      )}
+      )} */}
     </div>
   );
 }

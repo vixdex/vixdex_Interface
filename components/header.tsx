@@ -2,13 +2,12 @@
 
 import { Search } from 'lucide-react';
 import { useState } from 'react';
-
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { motion } from 'framer-motion';
 import { SearchPopup } from './search-popup';
-import { WalletAuthButton } from './ConnectWalletButton';
+import { AuthButton } from './AuthButton';
 
 export default function Header() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -57,10 +56,11 @@ export default function Header() {
 
           {/* Right Section */}
           <div className="flex-1 flex justify-end">
-            <WalletAuthButton />
+            <AuthButton />
           </div>
         </div>
       </motion.header>
+
       <SearchPopup isOpen={isSearchOpen} onClose={closeSearch} />
     </>
   );

@@ -12,7 +12,7 @@ import {
 } from './ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 
-export function WalletAuthButton() {
+export function AuthButton() {
   const { ready, authenticated, user } = usePrivy();
   const { login } = useLogin();
   const { logout } = useLogout();
@@ -37,7 +37,7 @@ export function WalletAuthButton() {
     }
   };
 
-  if (!ready) return <p>Loading Privy...</p>;
+  if (!ready) return <Button disabled>Loading...</Button>;
 
   if (authenticated && user?.wallet?.address) {
     const address = user.wallet.address;

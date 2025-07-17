@@ -1,13 +1,18 @@
 'use client';
 
 import { PrivyProvider } from '@privy-io/react-auth';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { base, baseSepolia, sepolia } from 'viem/chains';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
   const clientId = process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID;
+  const queryClient = new QueryClient();
 
   if (!appId || !clientId) {
-    throw new Error('Missing PRIVY_APP_ID or PRIVY_CLIENT_ID env vars');
+    throw new Error(
+      'Missing NEXT_PUBLIC_PRIVY_APP_ID or NEXT_PUBLIC_PRIVY_CLIENT_ID environment variables'
+    );
   }
 
   return (
@@ -15,83 +20,25 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       appId={appId}
       clientId={clientId}
       config={{
-        supportedChains: [
-          {
-            id: 11155111,
-            name: 'Sepolia',
-            nativeCurrency: {
-              name: 'Sepolia ETH',
-              symbol: 'ETH',
-              decimals: 18,
-            },
-            rpcUrls: {
-              default: {
-                http: ['https://ethereum-sepolia-rpc.publicnode.com'], // Replace with your RPC
-              },
-            },
-            blockExplorers: {
-              default: {
-                name: 'Etherscan',
-                url: 'https://sepolia.etherscan.io',
-              },
-            },
-            testnet: true,
-          },
-          {
-            id: 84532,
-            name: 'Base Sepolia',
-            nativeCurrency: {
-              name: 'Base Sepolia ETH',
-              symbol: 'ETH',
-              decimals: 18,
-            },
-            rpcUrls: {
-              default: {
-                http: ['https://sepolia.base.org'], // Base Sepolia RPC
-              },
-            },
-            blockExplorers: {
-              default: {
-                name: 'BaseScan',
-                url: 'https://sepolia.basescan.org',
-              },
-            },
-            testnet: true,
-          },
-        ],
-        defaultChain: {
-          id: 11155111,
-          name: 'Sepolia',
-          nativeCurrency: {
-            name: 'Sepolia ETH',
-            symbol: 'ETH',
-            decimals: 18,
-          },
-          rpcUrls: {
-            default: {
-              http: ['https://ethereum-sepolia-rpc.publicnode.com'], // Replace with your RPC
-            },
-          },
-          blockExplorers: {
-            default: {
-              name: 'Etherscan',
-              url: 'https://sepolia.etherscan.io',
-            },
-          },
-          testnet: true,
-        },
+        // Use viem's chain definitions for better type safety
+        supportedChains: [sepolia, baseSepolia, base],
+        defaultChain: sepolia,
         loginMethods: ['email', 'wallet', 'google'],
         appearance: {
-          theme: 'light',
+          theme: 'dark',
           accentColor: '#676FFF',
           logo: '/logo.png',
         },
+        // Embedded wallets configuration
         embeddedWallets: {
-          createOnLogin: 'users-without-wallets',
+          createOnLogin: 'off',
         },
+        // Wallet Connect configuration
+        walletConnectCloudProjectId:
+          process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID,
       }}
     >
-      {children}
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </PrivyProvider>
   );
 }
