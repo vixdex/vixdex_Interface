@@ -2,21 +2,28 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import Image from 'next/image';
-import { ArrowRight } from 'lucide-react';
+import { Loader2, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useSwap } from "@/hooks/swap";
+import { useSwap } from '@/hooks/swap';
+import { ethers } from 'ethers';
+import { useWallets } from '@privy-io/react-auth';
+import { useTransactions } from '@/contexts/TransactionContext';
+import { toast } from 'sonner';
+import { Card, CardContent } from './ui/card';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-} from '@/components/ui/select';
-import { ethers, toNumber } from 'ethers';
-import { approveUSDC, burnUSDC, mintUSDC, retrieveAttestation } from '@/hooks/usdc';
-import { useWallets } from '@privy-io/react-auth';
+  SelectValue,
+} from './ui/select';
+import {
+  approveUSDC,
+  burnUSDC,
+  mintUSDC,
+  retrieveAttestation,
+} from '@/hooks/usdc';
 
 interface Token {
   id: string;
@@ -48,12 +55,12 @@ interface VixData {
 
 const VIX_ABI = [
   'function getVixData(address poolAdd) view returns (address vixHighToken, address _vixLowToken, uint256 _circulation0, uint256 _circulation1, uint256 _contractHoldings0, uint256 _contractHoldings1, uint256 _reserve0, uint256 _reserve1, address _poolAddress)',
-  'function vixTokensPrice(uint contractHoldings) view returns(uint)'
+  'function vixTokensPrice(uint contractHoldings) view returns(uint)',
 ];
 
 const ERC20_ABI = [
   'function balanceOf(address owner) view returns (uint256)',
-  'function decimals() view returns (uint8)'
+  'function decimals() view returns (uint8)',
 ];
 
 // Chain configurations
@@ -83,9 +90,12 @@ const CHAIN_CONFIG = {
   26735: { name: 'BuildBear', color: '#FFF000' },
 };
 
-
-export function TradingWidget({ highTokenAdd, lowTokenAdd, poolAdd }: ElementProps) {
-  const {wallets} = useWallets()
+export function TradingWidget({
+  highTokenAdd,
+  lowTokenAdd,
+  poolAdd,
+}: ElementProps) {
+  const { wallets } = useWallets();
   const account = wallets[0]?.address as `0x${string}`;
 
   const [selectedType, setSelectedType] = useState<'High' | 'Low'>('High');
@@ -100,23 +110,30 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd, poolAdd }: ElementPro
   const [usdcBalance, setUsdcBalance] = useState<string>('0');
   const [currentChain, setCurrentChain] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const { addTransaction, updateTransactionStatus } = useTransactions();
 
   let { buy, sell } = useSwap();
   const amounts = ['1$', '10$', '20$'];
 
+  // Get the current token based on selection
+  // const currentToken = selectedType === 'High' ? 'High Token' : 'Low Token';
+
   // Initialize provider and contract
   const getProvider = () => {
     // Always use JsonRpcProvider for consistency
-    return new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://rpc.buildbear.io/dual-magma-e6ae5bf5");
+    return new ethers.JsonRpcProvider(
+      process.env.NEXT_PUBLIC_RPC_URL ||
+        'https://rpc.buildbear.io/dual-magma-e6ae5bf5'
+    );
   };
 
   // Fetch VIX data and token prices
   const fetchVixData = async () => {
     try {
       setIsLoading(true);
-      
+
       if (!process.env.NEXT_PUBLIC_VIX_CONTRACT_ADDRESS) {
-        throw new Error("VIX contract address not configured");
+        throw new Error('VIX contract address not configured');
       }
 
       const provider = getProvider();
@@ -127,15 +144,18 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd, poolAdd }: ElementPro
       );
 
       const vixData = await vixContract.getVixData(poolAdd);
-      
+
       // Get High token price
-      const highPrice = await vixContract.vixTokensPrice(vixData._contractHoldings0);
+      const highPrice = await vixContract.vixTokensPrice(
+        vixData._contractHoldings0
+      );
       setHighTokenPrice(Number(ethers.formatEther(highPrice)));
 
-      // Get Low token price  
-      const lowPrice = await vixContract.vixTokensPrice(vixData._contractHoldings1);
+      // Get Low token price
+      const lowPrice = await vixContract.vixTokensPrice(
+        vixData._contractHoldings1
+      );
       setLowTokenPrice(Number(ethers.formatEther(lowPrice)));
-
     } catch (error) {
       console.error('Error fetching VIX data:', error);
     } finally {
@@ -159,13 +179,21 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd, poolAdd }: ElementPro
       const provider = getProvider(); // Use RPC provider for contract reads
 
       // Fetch High token balance
-      const highTokenContract = new ethers.Contract(highTokenAdd, ERC20_ABI, provider);
+      const highTokenContract = new ethers.Contract(
+        highTokenAdd,
+        ERC20_ABI,
+        provider
+      );
       const highBalance = await highTokenContract.balanceOf(userAddress);
       const highDecimals = await highTokenContract.decimals();
       setHighTokenBalance(ethers.formatUnits(highBalance, highDecimals));
 
       // Fetch Low token balance
-      const lowTokenContract = new ethers.Contract(lowTokenAdd, ERC20_ABI, provider);
+      const lowTokenContract = new ethers.Contract(
+        lowTokenAdd,
+        ERC20_ABI,
+        provider
+      );
       const lowBalance = await lowTokenContract.balanceOf(userAddress);
       const lowDecimals = await lowTokenContract.decimals();
       setLowTokenBalance(ethers.formatUnits(lowBalance, lowDecimals));
@@ -181,7 +209,6 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd, poolAdd }: ElementPro
         const usdcDecimals = await usdcContract.decimals();
         setUsdcBalance(ethers.formatUnits(usdcBal, usdcDecimals));
       }
-
     } catch (error) {
       console.error('Error fetching token balances:', error);
     }
@@ -231,7 +258,7 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd, poolAdd }: ElementPro
   useEffect(() => {
     // Always fetch VIX data (doesn't require wallet)
     fetchVixData();
-    
+
     // Only fetch chain and balances if wallet might be available
     if (typeof window !== 'undefined') {
       getCurrentChain();
@@ -246,8 +273,8 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd, poolAdd }: ElementPro
       symbol: 'USDC',
       icon: 'https://assets.coingecko.com/coins/images/6319/large/USD_Coin_icon.png',
       balance: parseFloat(usdcBalance).toFixed(4),
-      address: process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "",
-      price: 1
+      address: process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + '',
+      price: 1,
     },
     {
       id: 'High',
@@ -256,7 +283,7 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd, poolAdd }: ElementPro
       icon: '',
       balance: parseFloat(highTokenBalance).toFixed(4),
       address: highTokenAdd,
-      price: highTokenPrice
+      price: highTokenPrice,
     },
     {
       id: 'Low',
@@ -265,11 +292,12 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd, poolAdd }: ElementPro
       icon: '',
       balance: parseFloat(lowTokenBalance).toFixed(4),
       address: lowTokenAdd,
-      price: lowTokenPrice
+      price: lowTokenPrice,
     },
   ];
 
-  const currentToken = tokens.find((token) => token.id === selectedToken) || tokens[0];
+  const currentToken =
+    tokens.find((token) => token.id === selectedToken) || tokens[0];
 
   // Calculate USD value based on selected token and amount
   const calculateUSDValue = () => {
@@ -289,196 +317,238 @@ export function TradingWidget({ highTokenAdd, lowTokenAdd, poolAdd }: ElementPro
     console.log('Custom amount changed:', value);
     console.log('High Token Address:', highTokenAdd);
     console.log('Low Token Address:', lowTokenAdd);
-    console.log("Selected type:", selectedType);
-    console.log("Selected token:", selectedToken);
-    console.log("USD Value:", calculateUSDValue());
+    console.log('Selected type:', selectedType);
+    console.log('Selected token:', selectedToken);
+    console.log('USD Value:', calculateUSDValue());
   };
 
+  // Or with proper error handling:
+  async function buyToken() {
+    // Check if wallet is connected
+    if (!wallets || wallets.length === 0) {
+      console.error('No wallet connected');
+      return;
+    }
 
-// Or with proper error handling:
-async function buyToken() {
-  // Check if wallet is connected
-  if (!wallets || wallets.length === 0) {
-    console.error('No wallet connected');
-    return;
-  }
+    const account = wallets[0].address as `0x${string}`;
 
-  const account = wallets[0].address as `0x${string}`;
-  
-  const amountParsed = ethers.parseUnits(customAmount, 6);
-  const isCrossChain = currentChain !== 11155111;
+    const amountParsed = ethers.parseUnits(customAmount, 6);
+    const isCrossChain = currentChain !== 11155111;
 
-  if (isCrossChain) {
-    console.log("Cross-chain swap triggered");
+    if (isCrossChain) {
+      console.log('Cross-chain swap triggered');
 
-    const chain = { 
-      id: currentChain!, 
-      name: "Unknown", 
-      network: "unknown", 
-      nativeCurrency: { name: "", symbol: "", decimals: 18 }, 
-      rpcUrls: { default: { http: "'https://sepolia.base.org" } } 
-    };
+      const chain = {
+        id: currentChain!,
+        name: 'Unknown',
+        network: 'unknown',
+        nativeCurrency: { name: '', symbol: '', decimals: 18 },
+        rpcUrls: { default: { http: "'https://sepolia.base.org" } },
+      };
 
-    await approveUSDC({
-      sourceChainId: currentChain!,
-      chain,
-      account,
-      wallets,
-      amount: amountParsed,
+      await approveUSDC({
+        sourceChainId: currentChain!,
+        chain,
+        account,
+        wallets,
+        amount: amountParsed,
+      });
 
-    });
+      const burnTxHash = await burnUSDC({
+        sourceChainId: currentChain!,
+        destChainId: 11155111,
+        chain,
+        account,
+        destinationAddress: account,
+        amount: amountParsed,
+        wallets,
+      });
 
-    const burnTxHash = await burnUSDC({
-      sourceChainId: currentChain!,
-      destChainId: 11155111,
-      chain,
-      account,
-      destinationAddress: account,
-      amount: amountParsed,
-      wallets,
-    });
+      const attestation = await retrieveAttestation(burnTxHash, currentChain!);
+      await mintUSDC({
+        destChainId: 11155111,
+        chain: {
+          id: 11155111,
+          name: 'Sepolia',
+          network: 'sepolia',
+          nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+          rpcUrls: {
+            default: { http: ['https://sepolia.infura.io/v3/your-key'] },
+          },
+        },
+        account,
+        attestation,
+        wallets,
+      });
 
-    const attestation = await retrieveAttestation(burnTxHash, currentChain!);
-    await mintUSDC({
-      destChainId: 11155111,
-      chain: { 
-        id: 11155111, 
-        name: "Sepolia", 
-        network: "sepolia", 
-        nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, 
-        rpcUrls: { default: { http: ["https://sepolia.infura.io/v3/your-key"] } } 
-      },
-      account,
-      attestation,
-      wallets,
-    });
+      return;
+    }
 
-    return;
-  }
+    ethers.parseUnits(customAmount, 18);
 
-
- ethers.parseUnits(customAmount, 18);
-    
     if (selectedType === 'High') {
       if (selectedToken === 'usdc') {
         // Handle USDC to High token swap
-        buy(ethers.parseUnits(customAmount, 18), process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", highTokenAdd, poolAdd);
+        buy(
+          ethers.parseUnits(customAmount, 18),
+          process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + '',
+          highTokenAdd,
+          poolAdd
+        );
       } else {
         // Handle High token to USDC swap
-        buy(ethers.parseUnits(customAmount, 18), highTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", poolAdd);
+        buy(
+          ethers.parseUnits(customAmount, 18),
+          highTokenAdd,
+          process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + '',
+          poolAdd
+        );
       }
-    }
-
-  else {
-    if (selectedToken === 'usdc') {
-      buy(ethers.parseUnits(customAmount, 18),process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS!, lowTokenAdd, poolAdd);
     } else {
-      buy(ethers.parseUnits(customAmount, 18), lowTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS!, poolAdd);
-    }
-  }
-}
-
-
- async function sellToken() {
-  console.log('Sell function called');
-  console.log('Custom Amount:', ethers.parseUnits(customAmount, 18));
-
-  // Check if wallet is connected
-  if (!wallets || wallets.length === 0) {
-    console.error('No wallet connected');
-    return;
-  }
-
-  const account = wallets[0].address as `0x${string}`;
-  const isCrossChain = currentChain !== 11155111; // Check if user wants USDC on different chain
-
-  if (selectedType === 'High') {
-    if (selectedToken === 'usdc') {
-      // Selling USDC for High tokens (essentially buying High)
-      buy(ethers.parseUnits(customAmount, 18), process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", highTokenAdd, poolAdd);
-    } else {
-      // Selling High tokens for USDC
-      await sell(ethers.parseUnits(customAmount, 18), highTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", poolAdd);
-      
-      // If cross-chain, transfer USDC to preferred chain
-      if (isCrossChain) {
-        await transferUSDCToPeferredChain(account, ethers.parseUnits(customAmount, 6)); // Assuming 6 decimals for USDC
-      }
-    }
-  } else {
-    if (selectedToken === 'usdc') {
-      // Selling USDC for Low tokens (essentially buying Low)
-      buy(ethers.parseUnits(customAmount, 18), process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", lowTokenAdd, poolAdd);
-    } else {
-      // Selling Low tokens for USDC
-      await sell(ethers.parseUnits(customAmount, 18), lowTokenAdd, process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + "", poolAdd);
-      
-      // If cross-chain, transfer USDC to preferred chain
-      if (isCrossChain) {
-        await transferUSDCToPeferredChain(account, ethers.parseUnits(customAmount, 6)); // Assuming 6 decimals for USDC
+      if (selectedToken === 'usdc') {
+        buy(
+          ethers.parseUnits(customAmount, 18),
+          process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS!,
+          lowTokenAdd,
+          poolAdd
+        );
+      } else {
+        buy(
+          ethers.parseUnits(customAmount, 18),
+          lowTokenAdd,
+          process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS!,
+          poolAdd
+        );
       }
     }
   }
-}
 
-async function transferUSDCToPeferredChain(account, usdcAmount) {
-  console.log("Cross-chain USDC transfer triggered");
+  async function sellToken() {
+    console.log('Sell function called');
+    console.log('Custom Amount:', ethers.parseUnits(customAmount, 18));
 
-  const sourceChain = { 
-    id: 11155111, // Sepolia (where the sell happened)
-    name: "Sepolia", 
-    network: "sepolia", 
-    nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, 
-    rpcUrls: { default: { http: ["https://sepolia.infura.io/v3/your-key"] } } 
-  };
+    // Check if wallet is connected
+    if (!wallets || wallets.length === 0) {
+      console.error('No wallet connected');
+      return;
+    }
 
-  const destChain = { 
-    id: currentChain!, 
-    name: "Unknown", 
-    network: "unknown", 
-    nativeCurrency: { name: "", symbol: "", decimals: 18 }, 
-    rpcUrls: { default: { http: "https://sepolia.base.org" } } 
-  };
+    const account = wallets[0].address as `0x${string}`;
+    const isCrossChain = currentChain !== 11155111; // Check if user wants USDC on different chain
 
-  try {
-    // Step 1: Approve USDC for burning on source chain (Sepolia)
-    await approveUSDC({
-      sourceChainId: 11155111,
-      chain: sourceChain,
-      account,
-      wallets,
-      amount: usdcAmount,
-    });
+    if (selectedType === 'High') {
+      if (selectedToken === 'usdc') {
+        // Selling USDC for High tokens (essentially buying High)
+        buy(
+          ethers.parseUnits(customAmount, 18),
+          process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + '',
+          highTokenAdd,
+          poolAdd
+        );
+      } else {
+        // Selling High tokens for USDC
+        await sell(
+          ethers.parseUnits(customAmount, 18),
+          highTokenAdd,
+          process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + '',
+          poolAdd
+        );
 
-    // Step 2: Burn USDC on source chain
-    const burnTxHash = await burnUSDC({
-      sourceChainId: 11155111,
-      destChainId: currentChain!,
-      chain: sourceChain,
-      account,
-      destinationAddress: account,
-      amount: usdcAmount,
-      wallets,
-    });
+        // If cross-chain, transfer USDC to preferred chain
+        if (isCrossChain) {
+          await transferUSDCToPeferredChain(
+            account,
+            ethers.parseUnits(customAmount, 6)
+          ); // Assuming 6 decimals for USDC
+        }
+      }
+    } else {
+      if (selectedToken === 'usdc') {
+        // Selling USDC for Low tokens (essentially buying Low)
+        buy(
+          ethers.parseUnits(customAmount, 18),
+          process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + '',
+          lowTokenAdd,
+          poolAdd
+        );
+      } else {
+        // Selling Low tokens for USDC
+        await sell(
+          ethers.parseUnits(customAmount, 18),
+          lowTokenAdd,
+          process.env.NEXT_PUBLIC_BASE_TOKEN_ADDRESS + '',
+          poolAdd
+        );
 
-    // Step 3: Retrieve attestation
-    const attestation = await retrieveAttestation(burnTxHash, 11155111);
-
-    // Step 4: Mint USDC on destination chain
-    await mintUSDC({
-      destChainId: currentChain!,
-      chain: destChain,
-      account,
-      attestation,
-      wallets,
-    });
-
-    console.log("USDC successfully transferred to preferred chain");
-  } catch (error) {
-    console.error("Error transferring USDC to preferred chain:", error);
-    throw error;
+        // If cross-chain, transfer USDC to preferred chain
+        if (isCrossChain) {
+          await transferUSDCToPeferredChain(
+            account,
+            ethers.parseUnits(customAmount, 6)
+          ); // Assuming 6 decimals for USDC
+        }
+      }
+    }
   }
-}
+
+  async function transferUSDCToPeferredChain(account, usdcAmount) {
+    console.log('Cross-chain USDC transfer triggered');
+
+    const sourceChain = {
+      id: 11155111, // Sepolia (where the sell happened)
+      name: 'Sepolia',
+      network: 'sepolia',
+      nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+      rpcUrls: { default: { http: ['https://sepolia.infura.io/v3/your-key'] } },
+    };
+
+    const destChain = {
+      id: currentChain!,
+      name: 'Unknown',
+      network: 'unknown',
+      nativeCurrency: { name: '', symbol: '', decimals: 18 },
+      rpcUrls: { default: { http: 'https://sepolia.base.org' } },
+    };
+
+    try {
+      // Step 1: Approve USDC for burning on source chain (Sepolia)
+      await approveUSDC({
+        sourceChainId: 11155111,
+        chain: sourceChain,
+        account,
+        wallets,
+        amount: usdcAmount,
+      });
+
+      // Step 2: Burn USDC on source chain
+      const burnTxHash = await burnUSDC({
+        sourceChainId: 11155111,
+        destChainId: currentChain!,
+        chain: sourceChain,
+        account,
+        destinationAddress: account,
+        amount: usdcAmount,
+        wallets,
+      });
+
+      // Step 3: Retrieve attestation
+      const attestation = await retrieveAttestation(burnTxHash, 11155111);
+
+      // Step 4: Mint USDC on destination chain
+      await mintUSDC({
+        destChainId: currentChain!,
+        chain: destChain,
+        account,
+        attestation,
+        wallets,
+      });
+
+      console.log('USDC successfully transferred to preferred chain');
+    } catch (error) {
+      console.error('Error transferring USDC to preferred chain:', error);
+      throw error;
+    }
+  }
 
   return (
     <Card className="w-full max-w-sm bg-black border-gray-800 hidden md:block">
@@ -520,7 +590,7 @@ async function transferUSDCToPeferredChain(account, usdcAmount) {
             <Button
               key={amount}
               onClick={() => handleAmountSelect(amount)}
-              className={`px-8 py-2 rounded-full text-sm font-medium border-0 border-input-0 ${
+              className={`px-8 py-2 rounded-full text-sm font-medium border-0 ${
                 selectedAmount === amount
                   ? 'bg-[#4ade80] text-black'
                   : 'bg-secondary text-white hover:bg-[#4b5563]'
@@ -532,7 +602,7 @@ async function transferUSDCToPeferredChain(account, usdcAmount) {
         </div>
 
         <div className="flex bg-secondary items-center rounded-lg">
-          <div className="focus:outline-none focus:ring-0 focus:border-none p-1">
+          <div className="focus:outline-none focus:ring-0 focus:border-none p-1 flex-1">
             <Input
               type="number"
               value={customAmount}
@@ -542,21 +612,23 @@ async function transferUSDCToPeferredChain(account, usdcAmount) {
             />
 
             <div className="text-gray-400 text-xs text-center">
-              ${calculateUSDValue().toLocaleString(undefined, { 
-                minimumFractionDigits: 2, 
-                maximumFractionDigits: 6 
+              $
+              {calculateUSDValue().toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 6,
               })}
             </div>
             <div className="text-gray-500 text-xs text-center">
-              {currentToken.symbol} Price: ${currentToken.price.toLocaleString(undefined, { 
-                minimumFractionDigits: 2, 
-                maximumFractionDigits: 6 
+              {currentToken.symbol} Price: $
+              {currentToken.price.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 6,
               })}
             </div>
           </div>
 
           {/* Token Selector */}
-          <div className="">
+          <div className="flex-shrink-0">
             <Select value={selectedToken} onValueChange={setSelectedToken}>
               <SelectTrigger
                 className="
@@ -566,63 +638,21 @@ async function transferUSDCToPeferredChain(account, usdcAmount) {
                   focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:shadow-none
                 "
               >
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 relative">
-                    {(currentToken.id === 'High' || currentToken.id === 'Low') ? (
-                      <div
-                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-                          currentToken.id === 'High' ? 'bg-[#4ade80]' : 'bg-[#ef4444]'
-                        }`}
-                      >
-                        {currentToken.id === 'High' ? 'H' : 'L'}
-                      </div>
-                    ) : (
-                      <Image
-                        src={currentToken.icon || '/placeholder.svg'}
-                        alt={currentToken.symbol}
-                        width={24}
-                        height={24}
-                        className="rounded-full"
-                      />
-                    )}
-                  </div>
-                  <span className="font-medium">{currentToken.name}</span>
-                </div>
+                <SelectValue placeholder="Select token" />
               </SelectTrigger>
-
-              <SelectContent className="bg-secondary border-gray-600">
-                {tokens
-                  .filter(token => 
-                    token.id === 'usdc' || 
-                    (selectedType === 'High' && token.id === 'High') || 
-                    (selectedType === 'Low' && token.id === 'Low')
-                  )
-                  .map(token => (
-                    <SelectItem key={token.id} value={token.id} className="text-white">
+              <SelectContent>
+                {tokens &&
+                  tokens.map((token) => (
+                    <SelectItem
+                      key={token.id}
+                      value={token.id}
+                      className="text-white"
+                    >
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 relative">
-                          {token.id === 'High' ? (
-                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white bg-[#4ade80]">
-                              H
-                            </div>
-                          ) : token.id === 'Low' ? (
-                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white bg-[#ef4444]">
-                              L
-                            </div>
-                          ) : (
-                            <Image
-                              src={token.icon || '/placeholder.svg'}
-                              alt={token.symbol}
-                              width={24}
-                              height={24}
-                              className="rounded-full"
-                            />
-                          )}
+                          {/* Token icon would go here */}
                         </div>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{token.name}</span>
-                          <span className="text-xs text-gray-400">{token.symbol}</span>
-                        </div>
+                        <span>{token.symbol}</span>
                       </div>
                     </SelectItem>
                   ))}
@@ -634,22 +664,25 @@ async function transferUSDCToPeferredChain(account, usdcAmount) {
         {/* Balance and Fees */}
         <div className="space-y-3 text-gray-400 text-sm">
           <div>
-            {currentToken.symbol} Balance: {currentToken.balance} {currentToken.symbol}
+            {currentToken.symbol} Balance: {currentToken.balance}{' '}
+            {currentToken.symbol}
           </div>
           <div>Swap fee (0.3%): {(calculateUSDValue() * 0.003).toFixed(8)}</div>
           <div>Gas Fee: 0.00000001</div>
           <div className="flex items-center gap-2">
             <span>
-              Network: {currentChain && CHAIN_CONFIG[currentChain] 
-                ? CHAIN_CONFIG[currentChain].name 
+              Network:{' '}
+              {currentChain && CHAIN_CONFIG[currentChain]
+                ? CHAIN_CONFIG[currentChain].name
                 : `Chain ${currentChain || 'Unknown'}`}
             </span>
-            <div 
+            <div
               className="w-4 h-4 rounded-full"
               style={{
-                backgroundColor: currentChain && CHAIN_CONFIG[currentChain] 
-                  ? CHAIN_CONFIG[currentChain].color 
-                  : '#gray'
+                backgroundColor:
+                  currentChain && CHAIN_CONFIG[currentChain]
+                    ? CHAIN_CONFIG[currentChain].color
+                    : '#gray',
               }}
             ></div>
           </div>
@@ -674,8 +707,10 @@ async function transferUSDCToPeferredChain(account, usdcAmount) {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
-            <Button 
-              onClick={() => { buyToken() }} 
+            <Button
+              onClick={() => {
+                buyToken();
+              }}
               className="w-full h-14 bg-[#4ade80] hover:bg-[#4ade80]/90 text-black font-semibold text-lg rounded-2xl"
               disabled={isLoading}
             >
@@ -687,8 +722,10 @@ async function transferUSDCToPeferredChain(account, usdcAmount) {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
-            <Button 
-              onClick={() => { sellToken() }} 
+            <Button
+              onClick={() => {
+                sellToken();
+              }}
               className="w-full h-14 bg-[#ef4444] hover:bg-[#ef4444]/90 text-white font-semibold text-lg rounded-2xl"
               disabled={isLoading}
             >
