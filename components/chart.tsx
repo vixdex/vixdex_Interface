@@ -21,7 +21,7 @@ interface ChartProps{
 
 // Available time ranges
 type TimeRange = '1H' | '4H' | '1D' ;
-let socket = io('http://localhost:8000');
+//let socket = io('http://localhost:8000');
 const CandlestickChart: React.FC<ChartProps> = ({
   width = 600,
   height = 400,
@@ -44,7 +44,7 @@ let greenTheme = {
   }
 useEffect(() => {
   const container = chartContainerRef.current;
-  if (!container) return;
+  if (!container || chartRef.current) return; // <-- prevent duplicate chart
 
   container.innerHTML = "";
 
@@ -60,14 +60,12 @@ useEffect(() => {
 
   const fetchData = async () => {
     try {
-      const response = await axios.get("http://localhost:8000/prices/0x45d50Cd59Fa8BD4a44d57C6452b051A033aEfEf5");
+      const response = await axios.get(process.env.NEXT_PUBLIC_NODE_URL+"prices/0x45d50Cd59Fa8BD4a44d57C6452b051A033aEfEf5");
       const prices = response.data.data.chart;
-
+      console.log("prices from chart: ",prices)
       const data = prices
         .map((item: any) => ({ time: item.time, value: item.price0 / 1e18 }))
         .filter((obj, index, self) => index === self.findIndex(o => o.value === obj.value && o.time === obj.time));
-
-      console.log("data:", data);
 
       chart = createChart(container, chartOptions);
 
@@ -97,17 +95,18 @@ useEffect(() => {
 
 
 
-socket.on("connectedMsg",()=>{
-  console.log("success")
-})
+
+// socket.on("connectedMsg",()=>{
+//   console.log("success")
+// })
 
 
-socket.on("newPrice", (res) => {
-  console.log("listened for new Price: ",res)
-  let newData = [...data,{time:res.time,value:res.price}]
-  setChart(newData)
-  chartRef.current?.setData(newData)
-})
+// socket.on("newPrice", (res) => {
+//   console.log("listened for new Price: ",res)
+//   let newData = [...data,{time:res.time,value:res.price0}]
+//   setChart(newData)
+//   chartRef.current?.setData(newData)
+// })
 
 
 
