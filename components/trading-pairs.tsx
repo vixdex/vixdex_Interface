@@ -145,7 +145,6 @@ export function TradingPairs({ onFetched }: TradingPairsProps) {
               process.env.NEXT_PUBLIC_NETWORK
             ) {
               try {
-
                 let MockPool_ABI = [
                   'function getRealPoolAddress() external view returns (address)',
                 ];

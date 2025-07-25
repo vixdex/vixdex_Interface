@@ -1,41 +1,59 @@
 'use client';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   createChart,
-  AreaData,
-  ISeriesApi
+  ISeriesApi,
+  ColorType,
+  LineStyle,
+  UTCTimestamp,
+  CandlestickData,
 } from 'lightweight-charts';
 import { io } from 'socket.io-client';
-import axios from 'axios';
+import { useHistoricalPrices, TimeRange } from '@/hooks/useHistoricalPrices';
 
-// Define the shape of candlestick data
-interface chartData {
-  time: string;
-  value:number;
+interface ChartProps {
+  networkId: string;
+  poolId: string;
+  priceType: 'price0' | 'price1';
+  height?: number;
+  className?: string;
 }
 
-interface ChartProps{
-  width: number;
-  height: number;
-}
+const socket = io(process.env.NEXT_PUBLIC_NODE_URL || 'http://localhost:8000');
 
-// Available time ranges
+
 type TimeRange = '1H' | '4H' | '1D' ;
 //let socket = io('http://localhost:8000');
 const CandlestickChart: React.FC<ChartProps> = ({
-  width = 600,
+  networkId,
+  poolId,
+  priceType,
   height = 400,
+  className = '',
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [selectedRange, setSelectedRange] = useState<TimeRange>('1D');
   const chartRef = useRef<ISeriesApi<'Area'> | null>(null);
-  let [chart,setChart] = useState([])
+  const chartInstance = useRef<any>(null);
+  const [chartDimensions, setChartDimensions] = useState({
+    width: 0,
+    height: 0,
+  });
 
-    let redTheme = {
-  lineColor: 'red',
-  topColor: 'rgba(239, 68, 68, 0.56)',     // red-500 with opacity
-  bottomColor: 'rgba(239, 68, 68, 0.04)',  // red-500 with lower opacity
-}
+  // Convert time range to milliseconds
+  const getIntervalMs = useCallback((range: TimeRange): number => {
+    switch (range) {
+      case '1H':
+        return 5 * 60 * 1000; // 5 minutes
+      case '4H':
+        return 15 * 60 * 1000; // 15 minutes
+      case '1D':
+        return 60 * 60 * 1000; // 1 hour
+      default:
+        return 60 * 60 * 1000; // Default to 1 hour
+    }
+  }, []);
+
 
 let greenTheme = { 
   lineColor: 'green', 
@@ -46,17 +64,46 @@ useEffect(() => {
   const container = chartContainerRef.current;
   if (!container || chartRef.current) return; // <-- prevent duplicate chart
 
-  container.innerHTML = "";
 
-  const chartOptions = {
-    layout: {
-      textColor: "white",
-      background: { type: "solid", color: "black" },
-      grid: { vertLines: { visible: false }, horzLines: { visible: false } }
+  // Handle resize and get container dimensions
+  const updateDimensions = useCallback(() => {
+    if (chartContainerRef.current) {
+      const container = chartContainerRef.current;
+      const rect = container.getBoundingClientRect();
+      const responsiveHeight = getResponsiveHeight();
+
+      setChartDimensions({
+        width: rect.width || container.offsetWidth,
+        height: responsiveHeight,
+      });
     }
+  }, [getResponsiveHeight]);
+
+  // Update dimensions on mount and resize
+  useEffect(() => {
+    updateDimensions();
+
+    const handleResize = () => {
+      updateDimensions();
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [updateDimensions]);
+
+  let redTheme = {
+    lineColor: '#EF4444', // red-500
+    topColor: 'rgba(239, 68, 68, 0.2)',
+    bottomColor: 'rgba(239, 68, 68, 0.02)',
+    lineWidth: 2,
   };
 
-  let chart: any;
+  let greenTheme = {
+    lineColor: '#10B981', // emerald-500
+    topColor: 'rgba(16, 185, 129, 0.2)',
+    bottomColor: 'rgba(16, 185, 129, 0.02)',
+    lineWidth: 2,
+  };
 
   const fetchData = async () => {
     try {
@@ -69,36 +116,71 @@ useEffect(() => {
 
       chart = createChart(container, chartOptions);
 
-      const theme = data[0].value < data[data.length - 1].value ? greenTheme : redTheme;
-      const areaSeries = chart.addAreaSeries(theme);
+    // Create chart instance
+    chartInstance.current = createChart(container, {
+      ...chartOptions,
+      width: chartDimensions.width,
+      height: chartDimensions.height,
+    });
 
-      areaSeries.setData(data);
-      chart.applyOptions({ grid: { vertLines: { visible: false }, horzLines: { visible: false } } });
-      chart.timeScale().applyOptions({ timeVisible: true });
-      chart.timeScale().fitContent();
+    // Convert price data to area series format
+    const areaData = priceData.map((item) => ({
+      time: item.time as UTCTimestamp,
+      value: (item as any)[priceType] || 0,
+    }));
 
-      chartRef.current = chart;
-    } catch (err) {
-      console.error(err);
-    }
-  };
+    // Add area series to chart
+    const areaSeries = chartInstance.current.addAreaSeries({
+      ...(areaData[0]?.value < areaData[areaData.length - 1]?.value
+        ? greenTheme
+        : redTheme),
+      lineWidth: isMobile ? 1.5 : 2,
+      priceScaleId: 'right',
+    });
 
-  fetchData();
+    areaSeries.setData(areaData);
+    chartInstance.current.timeScale().fitContent();
 
-  return () => {
-    if (chartRef.current) {
-      chartRef.current.remove();
+    // Store series reference
+    chartRef.current = areaSeries;
+
+    // Cleanup
+    return () => {
+      if (chartInstance.current) {
+        chartInstance.current.remove();
+        chartInstance.current = null;
+      }
       chartRef.current = null;
-    }
-  };
-}, []);
+    };
+  }, [priceData, priceType, chartDimensions]);
 
+  // Handle chart resize
+  useEffect(() => {
+    if (chartInstance.current && chartDimensions.width > 0) {
+      chartInstance.current.applyOptions({
+        width: chartDimensions.width,
+        height: chartDimensions.height,
+      });
+    }
+  }, [chartDimensions]);
+
+  socket.on('connectedMsg', () => {
+    console.log('success');
+  });
 
 
 
 // socket.on("connectedMsg",()=>{
 //   console.log("success")
 // })
+
+    const handleNewPrice = (res: any) => {
+      if (res.poolId === poolId) {
+        const timestamp = Math.floor(Date.now() / 1000) as UTCTimestamp;
+        const newPrice =
+          priceType === 'price0'
+            ? (res.price0 || 0) / 1e18
+            : (res.price1 || 0) / 1e18;
 
 
 // socket.on("newPrice", (res) => {
@@ -108,39 +190,87 @@ useEffect(() => {
 //   chartRef.current?.setData(newData)
 // })
 
+    socket.on('newPrice', handleNewPrice);
 
+    return () => {
+      socket.off('newPrice', handleNewPrice);
+    };
+  }, [poolId, priceType]);
 
-  // Handle range selection
-  const handleRangeChange = (range: TimeRange) => {
-    setSelectedRange(range);
-  };
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className={`w-full ${className}`}>
+        <div className="bg-gray-900 rounded-2xl p-4 sm:p-6 shadow-2xl border border-gray-800">
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex space-x-1 sm:space-x-2">
+              {['1H', '4H', '1D'].map((range) => (
+                <div
+                  key={range}
+                  className="px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-lg bg-gray-700 text-gray-400 animate-pulse"
+                >
+                  {range}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div
+            className="flex items-center justify-center bg-gray-800 rounded-lg"
+            style={{ height: `${getResponsiveHeight()}px` }}
+          >
+            <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-blue-500"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  // Time range options
-  const timeRanges: TimeRange[] = ['1H','4H','1D'];
+  // Show error state
+  if (error) {
+    return (
+      <div className={`w-full ${className}`}>
+        <div className="bg-gray-900 rounded-2xl p-4 sm:p-6 shadow-2xl border border-gray-800">
+          <div
+            className="flex items-center justify-center text-center text-red-500 p-4 text-sm sm:text-base"
+            style={{ height: `${getResponsiveHeight()}px` }}
+          >
+            <div>
+              <div className="mb-2">⚠️</div>
+              <div>Error loading chart</div>
+              <div className="text-xs text-gray-400 mt-1">{error}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full max-w-3xl mx-auto p-4 shadow-md rounded-lg bg-transparent">
-      {/* Range Switcher */}
-      <div className="mb-4 space-x-2 hidden">
-        {timeRanges.map((range) => (
-          <button
-            key={range}
-            onClick={() => handleRangeChange(range)}
-            className={`px-4 py-1 rounded-lg text-xs font-medium transition-colors ${
-              selectedRange === range
-                ? 'bg-blue-500 text-white'
-                : 'bg-gray-700 text-white-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-white-200 dark:hover:bg-gray-600 hover:text-black'
-            }`}
-          >
-            {range}
-          </button>
-        ))}
+    <div className={`w-full ${className}`}>
+      <div className="bg-gray-900 rounded-2xl p-4 sm:p-6 shadow-2xl border border-gray-800">
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex space-x-1 sm:space-x-2">
+            {['1H', '4H', '1D'].map((range) => (
+              <button
+                key={range}
+                onClick={() => setSelectedRange(range as TimeRange)}
+                className={`px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-lg transition-colors ${
+                  selectedRange === range
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                }`}
+              >
+                {range}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div
+          ref={chartContainerRef}
+          className="w-full touch-pan-x touch-pan-y"
+          style={{ height: `${getResponsiveHeight()}px` }}
+        />
       </div>
-      {/* Chart Container */}
-      <div
-        ref={chartContainerRef}
-        style={{ width: '100%', height: `${height}px` }}
-      />
     </div>
   );
 };
