@@ -21,6 +21,9 @@ interface ChartProps {
 
 const socket = io(process.env.NEXT_PUBLIC_NODE_URL || 'http://localhost:8000');
 
+
+type TimeRange = '1H' | '4H' | '1D' ;
+//let socket = io('http://localhost:8000');
 const CandlestickChart: React.FC<ChartProps> = ({
   networkId,
   poolId,
@@ -51,29 +54,16 @@ const CandlestickChart: React.FC<ChartProps> = ({
     }
   }, []);
 
-  const intervalMs = getIntervalMs(selectedRange);
-  const {
-    data: priceData,
-    isLoading,
-    error,
-  } = useHistoricalPrices(networkId, poolId, intervalMs, priceType);
 
-  const [chartData, setChartData] = useState<CandlestickData[]>([]);
+let greenTheme = { 
+  lineColor: 'green', 
+  topColor: 'rgba(16, 185, 129, 0.56)',
+   bottomColor: 'rgba(16, 185, 129, 0.04)'
+  }
+useEffect(() => {
+  const container = chartContainerRef.current;
+  if (!container || chartRef.current) return; // <-- prevent duplicate chart
 
-  // Responsive height calculation
-  const getResponsiveHeight = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      const screenWidth = window.innerWidth;
-      if (screenWidth < 640) {
-        // sm breakpoint
-        return Math.min(height * 0.7, 250); // Reduce height on mobile
-      } else if (screenWidth < 1024) {
-        // lg breakpoint
-        return Math.min(height * 0.85, 300); // Slightly reduce on tablet
-      }
-    }
-    return height;
-  }, [height]);
 
   // Handle resize and get container dimensions
   const updateDimensions = useCallback(() => {
@@ -115,79 +105,16 @@ const CandlestickChart: React.FC<ChartProps> = ({
     lineWidth: 2,
   };
 
-  // Handle chart initialization and updates
-  useEffect(() => {
-    const container = chartContainerRef.current;
-    if (!container || !priceData.length || !chartDimensions.width) return;
+  const fetchData = async () => {
+    try {
+      const response = await axios.get(process.env.NEXT_PUBLIC_NODE_URL+"prices/0x45d50Cd59Fa8BD4a44d57C6452b051A033aEfEf5");
+      const prices = response.data.data.chart;
+      console.log("prices from chart: ",prices)
+      const data = prices
+        .map((item: any) => ({ time: item.time, value: item.price0 / 1e18 }))
+        .filter((obj, index, self) => index === self.findIndex(o => o.value === obj.value && o.time === obj.time));
 
-    // Clear previous chart
-    container.innerHTML = '';
-
-    // Responsive chart options
-    const isMobile = chartDimensions.width < 640;
-    const isTablet =
-      chartDimensions.width >= 640 && chartDimensions.width < 1024;
-
-    const chartOptions = {
-      layout: {
-        textColor: '#9CA3AF', // gray-400
-        background: {
-          type: ColorType.Solid,
-          color: '#111827', // gray-900
-        },
-        fontFamily: 'Inter, sans-serif',
-        fontSize: isMobile ? 10 : 12,
-      },
-      grid: {
-        vertLines: {
-          visible: !isMobile, // Hide vertical lines on mobile for cleaner look
-          style: LineStyle.Solid,
-          color: 'rgba(156, 163, 175, 0.1)', // gray-400 with opacity
-        },
-        horzLines: {
-          visible: true,
-          style: LineStyle.Solid,
-          color: 'rgba(156, 163, 175, 0.1)', // gray-400 with opacity
-        },
-      },
-      rightPriceScale: {
-        borderColor: 'rgba(156, 163, 175, 0.1)',
-        scaleMargins: {
-          top: 0.1,
-          bottom: 0.1,
-        },
-        minimumWidth: isMobile ? 50 : 60,
-      },
-      timeScale: {
-        borderColor: 'rgba(156, 163, 175, 0.1)',
-        timeVisible: true,
-        secondsVisible: false,
-        rightOffset: isMobile ? 5 : 10,
-        barSpacing: isMobile ? 3 : 6,
-        minBarSpacing: isMobile ? 1 : 3,
-      },
-      crosshair: {
-        horzLine: {
-          color: 'rgba(156, 163, 175, 0.2)',
-          width: 1 as const,
-          style: LineStyle.Dashed,
-        },
-        vertLine: {
-          color: 'rgba(156, 163, 175, 0.2)',
-          width: 1 as const,
-          style: LineStyle.Dashed,
-        },
-      },
-      handleScroll: {
-        mouseWheel: !isMobile, // Disable mouse wheel on mobile
-        pressedMouseMove: true,
-      },
-      handleScale: {
-        axisPressedMouseMove: !isMobile,
-        mouseWheel: !isMobile,
-        pinch: isMobile, // Enable pinch zoom on mobile
-      },
-    };
+      chart = createChart(container, chartOptions);
 
     // Create chart instance
     chartInstance.current = createChart(container, {
@@ -241,9 +168,11 @@ const CandlestickChart: React.FC<ChartProps> = ({
     console.log('success');
   });
 
-  // Handle real-time price updates
-  useEffect(() => {
-    if (!chartRef.current) return;
+
+
+// socket.on("connectedMsg",()=>{
+//   console.log("success")
+// })
 
     const handleNewPrice = (res: any) => {
       if (res.poolId === poolId) {
@@ -253,10 +182,13 @@ const CandlestickChart: React.FC<ChartProps> = ({
             ? (res.price0 || 0) / 1e18
             : (res.price1 || 0) / 1e18;
 
-        // Update the last data point or add a new one
-        chartRef.current?.update({ time: timestamp, value: newPrice });
-      }
-    };
+
+// socket.on("newPrice", (res) => {
+//   console.log("listened for new Price: ",res)
+//   let newData = [...data,{time:res.time,value:res.price0}]
+//   setChart(newData)
+//   chartRef.current?.setData(newData)
+// })
 
     socket.on('newPrice', handleNewPrice);
 

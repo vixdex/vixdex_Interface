@@ -2,11 +2,7 @@
 export const fetchPairInitiatedEvents = async (): Promise<any[]> => {
 
   try {
-    const response = await fetch(
-      `${
-        process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      }/api/events/latest?limit=100`
-    );
+    const response = await fetch(process.env.NEXT_PUBLIC_NODE_URL+"api/events/latest?limit=100");
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
